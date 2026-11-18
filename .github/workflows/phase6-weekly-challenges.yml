@@ -1,0 +1,72 @@
+# Weekly Challenges retained; Weekly Leaderboard removed.
+# UTC Sun/Mon 21:20 = Baghdad Mon/Tue 00:20. The second schedule is a catch-up.
+# Starts READ-ONLY. Enable repo variable PHASE6_AUTO_APPLY=true only after staging and manual checks.
+name: Phase 6 Weekly Challenges (Free Scheduler)
+
+on:
+  schedule:
+    - cron: '20 21 * * 0,1'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'WRITE canonical weekly Challenges and sync D1 (only after backup / approved test)'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase6-weekly-challenges-canonical
+  cancel-in-progress: false
+
+jobs:
+  weekly-challenges:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      NODE_ENV: production
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      PRIVATE_DATA_WORKER_BASE_URL: ${{ secrets.PRIVATE_DATA_WORKER_BASE_URL }}
+      PRIVATE_DATA_SYNC_SECRET: ${{ secrets.PRIVATE_DATA_SYNC_SECRET }}
+      PRIVATE_D1_PHASE6_GAMIFICATION_SYNC_ENABLED: 'true'
+      PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER_ENABLED: 'false'
+    steps:
+      - name: Checkout protected default branch
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Check required production secrets are present
+        shell: bash
+        run: |
+          for key in SUPABASE_DATABASE_URL PRIVATE_DATA_WORKER_BASE_URL PRIVATE_DATA_SYNC_SECRET; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing required secret: ${key}"
+              exit 1
+            fi
+          done
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      - name: Run bounded weekly reconciliation
+        shell: bash
+        env:
+          AUTO_APPLY: ${{ github.event_name == 'schedule' && vars.PHASE6_AUTO_APPLY == 'true' && 'true' || 'false' }}
+          MANUAL_APPLY: ${{ github.event_name == 'workflow_dispatch' && inputs.apply && 'true' || 'false' }}
+        run: |
+          if [ "$AUTO_APPLY" = "true" ] || [ "$MANUAL_APPLY" = "true" ]; then
+            export PHASE6_ALLOW_AUTOMATED_CANONICAL_WRITES=true
+            node scripts/phase6-weekly-rollover-runner.cjs --cron --from=1 --batch-size=2 --timeout-seconds=180 --apply --confirm-apply
+          else
+            echo 'READ_ONLY trial run. No canonical writes.'
+            node scripts/phase6-weekly-rollover-runner.cjs --from=1 --batch-size=2 --timeout-seconds=180
+          fi
+      - name: Verify all active D1 Gamification snapshots (READ_ONLY)
+        run: npm run gamification:d1:verify

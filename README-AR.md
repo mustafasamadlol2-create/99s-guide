@@ -1,53 +1,28 @@
-# 99's Guide — Focus TS typecheck repair (guarded, non-destructive)
+# 99’s Guide — تشغيل Weekly Challenges مجاناً بواسطة GitHub Actions
 
-## مصدر هذه الحزمة
-سجل المستخدم 17 Nov 2026: تطبيق حزمة Focus نجح على 5 ملفات، و`npm run build` نجح، بينما `npm run typecheck` أبلغ عن 56 TypeScript errors موزعة على 12 ملفاً. النسخة البرمجية المتاحة هنا هي baseline أقدم؛ لا تتوفر نسخة source الحالية كاملة.
+هذا بديل عن Render Cron Job المدفوع. الحزمة تضيف **ملفاً واحداً فقط** إلى مسار `.github/workflows/phase6-weekly-challenges.yml`، ولا تغير ملفات التطبيق أو إعدادات D1. لا ترفع `.env` إلى GitHub.
 
-**هذه الحزمة لا تدّعي إصلاح جميع أخطاء TypeScript.** إنما تصلح النقطتين اللتين أمكن تحديدهما بثقة من الملفات المتوفرة:
+## الإعداد
 
-1. خطأ `TS2367` في `src/features/group-focus/runtime/groupFocusRealtime.ts` داخل catch الخاص بإعادة الاتصال: يستخدم `isRuntimeTerminal()` لقراءة الحالة الحالية بعد await، مما يحافظ على منع reconnect عند TERMINAL دون فحص TypeScript خاطئ للتضييق القديم.
-2. فصل فحص Cloudflare Workers عن فحص Frontend/Backend TypeScript العام: استبعاد `cloudflare-main-worker.ts` من **فحص التطبيق العام فقط**، وإنشاء `tsconfig.cloudflare-main.json` لعمل **فحص مستقل** باستخدام `cloudflare-group-focus-worker/worker-configuration.d.ts` و`strict`.
+1. انسخ مجلد `.github` الموجود في هذه الحزمة إلى **جذر مشروع GitHub** (جذر `package.json`) ثم ادفع الملف إلى **الفرع الافتراضي** (عادةً `main`).
+2. افتح GitHub: Repository → Settings → Secrets and variables → Actions → Repository secrets. أضف:
+   - `SUPABASE_DATABASE_URL` — رابط الاتصال المعتمد في بيئة الإنتاج (احتفظ بصفته سراً).
+   - `PRIVATE_DATA_WORKER_BASE_URL` — عنوان Cloudflare Private Worker.
+   - `PRIVATE_DATA_SYNC_SECRET` — السر الموجود بالفعل لعمليات D1 الخاصة.
+   - `DIRECT_URL` — اختياري إذا كان مختلفاً عن رابط Pooler؛ في المشروع الحالي يمكن لـ Prisma أن يرجع إلى `DATABASE_URL` إن لم يُحدد.
+3. افتح Actions → `Phase 6 Weekly Challenges (Free Scheduler)` → Run workflow. اجعل `apply=false` للاختبار الأول. تحقق من السجل ومن نتيجة `123/123`.
+4. بعد Backup حديث والتحقق أن التجديد الأسبوعي يعمل في بيئة آمنة، يمكن اختبار `Run workflow` مع `apply=true` في بيئة مضبوطة. لا تفعل ذلك إذا كان هناك تشغيل آخر، أو Outbox معلّق، أو اتصال غير مستقر.
+5. **للتفعيل التلقائي بعد الموافقة فقط**: Settings → Secrets and variables → Actions → Variables → New repository variable: `PHASE6_AUTO_APPLY=true`. إذا لم تضفه، ستبقى جميع التشغيلات المجدولة READ_ONLY.
 
-لا تغيّر هذه الحزمة أي API أو Feature Flag أو DB أو Points أو Rewards أو Outbox أو Deploy أو Runtime worker configuration.
+## الجدولة الدقيقة
 
-## خطوات التطبيق (Windows CMD)
-1. خذ Git commit / نسخة احتياطية. وضع السكربت المرفق في `scripts/apply-focus-tscheck-hotfix.cjs` من جذر مشروعك.
-2. تأكد أنك طبقت مسبقاً حزمة Focus Hub Stability؛ لأن Anchor التعديل يعتمد على نسخة runtime تلك.
-3. افحص دون كتابة:
-   ```bat
-   node scripts\apply-focus-tscheck-hotfix.cjs
-   ```
-   إذا ظهر `ANCHOR_MISMATCH` أو `EXISTS`، لا تشغل `--apply`؛ لا تستبدل ملفاتك الحالية بملفات قديمة.
-4. نفّذ التعديل المحلي:
-   ```bat
-   node scripts\apply-focus-tscheck-hotfix.cjs --apply
-   ```
-5. نفّذ **الاختبارين**؛ لا تعتبر النجاح إن فشل أي منهما:
-   ```bat
-   npm run typecheck
-   npx tsc --noEmit -p tsconfig.cloudflare-main.json
-   npm run build
-   ```
-6. إذا فشل أي اختبار فلا تنشر للبيئة الحية. إذا أردت الرجوع عن هذا التعديل **فقط**:
-   ```bat
-   node scripts\apply-focus-tscheck-hotfix.cjs --rollback
-   ```
-   النسخ الأصلية محفوظة في `.focus-tscheck-backup/` ولا تمس `.focus-stability-backup/` السابقة.
+`20 21 * * 0,1` بتوقيت UTC: الأحد والاثنين 21:20 UTC، أي الاثنين والثلاثاء الساعة 00:20 بتوقيت بغداد. تشغيل الاثنين هو الأساسي، والثلاثاء محاولة تعويض **غير كاتبة إن كان كل شيء متطابقاً**. GitHub قد يؤخر أو يفوّت تشغيلات Cron؛ لا تعتبر توقيت 00:20 ضماناً لحظياً.
 
-## ما الذي سيبقى؟
-أخطاء أخرى سجلت في `scripts/focus-d1-current-reconcile.ts`, `scripts/gamification-d1-phase6.ts`, `scripts/phase6-gamification-weekly-reconcile.ts`, `server.ts`, `server/features/gamification/achievementRead.ts`, `server/features/study-points/*`, `tests/gamification-challenges-route.test.ts`. لا يمكن تعديلها بأمان من أرقام الأسطر دون نسخة source الحالية.
+## مهم جداً
 
-غالباً سيتبقى نحو 46 خطأ في الفحص العام إذا كان Worker منفصلاً بالكامل والفحص المستقل للـWorker ناجحاً؛ العدد ليس مضموناً. `npm run build` ينجح دون تنفيذ typecheck، فلا يعوّض فشل `npm run typecheck`.
-
-**مطلوب لإغلاق هذه الأخطاء نهائياً:** إرسال ZIP من نسخة المشروع المحلية الحالية مع استبعاد `node_modules`, `dist`, `.env`, `.dev.vars`, أسرار وملفات backup، حتى يمكن اختبار التصحيحات على الشيفرة الفعلية وليس baseline أقدم.
-
-## الاختبارات التي أُجريت
-- `node --check` للـpatcher: PASS
-- CHECK_ONLY على نسخة المرجع: PASS
-- APPLY وIdempotent Recheck: PASS
-- ROLLBACK ومطابقة ملفات المرجع الأصلية: PASS
-- JSON parse لملفي tsconfig: PASS
-- فحص TypeScript الكامل: NOT RUN (الاعتمادات الحالية للمشروع غير متوفرة هنا)
-- فحص Render, Cloudflare, Supabase, R2: NOT RUN
-
-`PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER_ENABLED=false` يبقى كما هو.
+- GitHub Actions ضمن الاستخدام المجاني المتاح لحسابك، وليس خدمة بلا حدود. راقب Usage/Billing، خصوصاً إذا كان المستودع خاصاً. ليس هناك ضمان أنك لن تدفع إذا تجاوزت الحصة مع تفعيل الفوترة.
+- السكربت سيكتب بيانات canonical وقد ينتج Rewards عند `apply=true` وفق قواعد المشروع. لذلك نحتاج مراجعة idempotency وحالة Outbox مع اختبار أسبوع جديد قبل تشغيله تلقائياً.
+- استخدم متغيرات Actions في GitHub (Repository Variables) لتفعيل `PHASE6_AUTO_APPLY`، لا تُضف أسراراً للنص أو المستودع.
+- تركنا `PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER_ENABLED=false`. لا تفعله بعد تثبيت الحزمة؛ التفعيل يحتاج اعتماداً منفصلاً.
+- السكربت يستخدم فهارس الحسابات النشطة؛ إذا تغيّر عدد الحسابات أثناء جولة طويلة يتوقف بدلاً من إكمال فهارس قديمة. يجب فحص سجل التشغيل ولا تعيد `--apply` بعد توقف غامض قبل مراجعة Outbox.
+- تنبيه: **Cloudflare Workers Cron Trigger** خيار مجاني أيضاً، لكنه لا يشغّل سكربت Node الحالي مباشرةً. يتطلب بناء endpoint داخل Backend أو تشغيل دفعات صغيرة.
