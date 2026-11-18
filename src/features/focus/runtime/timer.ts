@@ -10,6 +10,13 @@ export interface FocusTimerBaseline {
   remainingSecondsAtSync: number | null;
 }
 
+/** A source visit continues canonical study time; only PAUSED freezes it. */
+export function isServerCountedFocusStatus(
+  status: FocusSessionDto["status"] | null | undefined,
+): boolean {
+  return status === "ACTIVE" || status === "RESOURCE_HANDOFF";
+}
+
 export interface FocusDisplayEstimate {
   estimatedServerNow: string | null;
   displayRemainingSeconds: number | null;
@@ -91,7 +98,7 @@ export function estimateFocusDisplay(
 
   // RESOURCE_HANDOFF is an active, server-counted study segment. Opening a
   // PDF/YouTube tab must not freeze the visible timer. PAUSED remains frozen.
-  const countsWallTime = session.status === "ACTIVE" || session.status === "RESOURCE_HANDOFF";
+  const countsWallTime = isServerCountedFocusStatus(session.status);
   const displayRemainingSeconds = countsWallTime
     ? Math.max(0, Math.ceil(baseline.remainingSecondsAtSync - elapsedMilliseconds / 1000))
     : baseline.remainingSecondsAtSync;

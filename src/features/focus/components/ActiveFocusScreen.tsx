@@ -229,7 +229,6 @@ function ActiveFocusScreenCore({
   lectures,
   language,
   catalogStatus,
-  resourceHandoffEnabled,
   onReturnToPlanner,
   onOpenSession,
   onOpenSummary,
@@ -264,6 +263,7 @@ function ActiveFocusScreenCore({
   const [resourceError, setResourceError] = useState(false);
   const [openingResourceId, setOpeningResourceId] = useState<string | null>(null);
   const resourceOpenInFlightRef = useRef(false);
+  const handoffAutoReturnAttemptRef = useRef<string | null>(null);
   const [confirmType, setConfirmType] = useState<"end" | "exit" | null>(null);
   const [immersiveMode, setImmersiveMode] = useState(false);
   const [dismissedInterruption, setDismissedInterruption] = useState<string | null>(null);
@@ -534,6 +534,50 @@ function ActiveFocusScreenCore({
     runtime.session?.status !== "RECONCILIATION_REQUIRED" &&
     !isRuntimeBusy,
   );
+  // A handoff is server-counted study time, not a paused Focus session.
+  // When the student returns to this page, restore ACTIVE automatically.
+  // Never retry a failed write in a loop; a new foreground event may retry.
+  useEffect(() => {
+    if (canonicalSession?.status !== "RESOURCE_HANDOFF") {
+      handoffAutoReturnAttemptRef.current = null;
+      return;
+    }
+    if (!canonicalRouteMatch || !online || openingResourceId !== null) return;
+
+    const returnIfForeground = () => {
+      if (typeof document !== "undefined" &&
+          (document.visibilityState !== "visible" ||
+            (typeof document.hasFocus === "function" && !document.hasFocus()))) return;
+      const latest = controller.getState();
+      if (latest.sessionAuthority !== "CANONICAL" ||
+          latest.session?.id !== sessionRouteId ||
+          latest.session.status !== "RESOURCE_HANDOFF" ||
+          latest.runtimeStatus === "MUTATING" ||
+          handoffAutoReturnAttemptRef.current === sessionRouteId) return;
+      handoffAutoReturnAttemptRef.current = sessionRouteId;
+      void controller.returnFromResourceHandoff().catch(() => {
+        // Preserve the canonical resource-handoff timer on network failure.
+        // Foreground/reconnect can retry; never invent ACTIVE locally.
+        void controller.reconcile().catch(() => {});
+      });
+    };
+    const onForeground = () => {
+      handoffAutoReturnAttemptRef.current = null;
+      returnIfForeground();
+    };
+    const timer = window.setTimeout(returnIfForeground, 200);
+    window.addEventListener("focus", onForeground);
+    window.addEventListener("pageshow", onForeground);
+    document.addEventListener("visibilitychange", onForeground);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", onForeground);
+      window.removeEventListener("pageshow", onForeground);
+      document.removeEventListener("visibilitychange", onForeground);
+    };
+  }, [canonicalRouteMatch, canonicalSession?.id, canonicalSession?.status,
+      controller, online, openingResourceId, sessionRouteId]);
+
   const visibleActionError = actionError ??
     (runtime.error && runtime.runtimeStatus !== "OFFLINE_STALE"
       ? t.focusActiveActionError
@@ -1598,7 +1642,7 @@ function ActiveFocusScreenCore({
   const runtimeStatusLabel = isReconciliationRequired
     ? t.focusActiveStatusReconciliation
     : isResourceHandoff
-      ? t.focusActiveStatusResource
+      ? t.focusActiveStatusActive
       : isPaused
         ? t.focusActiveStatusPaused
         : isActive
@@ -1607,7 +1651,7 @@ function ActiveFocusScreenCore({
   const timerPhaseLabel = isPaused
     ? t.focusActiveStatusPaused
     : isResourceHandoff
-      ? t.focusActiveStatusResource
+      ? t.focusActiveStudyPhase
       : isActive
         ? t.focusActiveStudyPhase
         : t.focusActiveChecking;
@@ -1676,28 +1720,8 @@ function ActiveFocusScreenCore({
           </div>
         </div>
       )}
-      {isResourceHandoff && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-50 p-4 text-sky-950 dark:bg-sky-950/30 dark:text-sky-100" role="status">
-          <div>
-            <h2 className="font-semibold">{t.focusActiveStatusResource}</h2>
-            <p className="mt-1 text-sm">
-              {resourceHandoffEnabled
-                ? t.focusActiveSubtitle
-                : language === "ar"
-                  ? "تم تعطيل تسليم الموارد. عُد إلى التركيز لاستئناف هذه الجلسة."
-                  : "Resource handoff is disabled. Return to Focus to resume this session."}
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={!mayChangeSession}
-            onClick={() => void perform(() => controller.returnFromResourceHandoff())}
-            className="min-h-11 rounded-xl bg-primary px-4 font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-          >
-            {t.focusActiveReturnToFocus}
-          </button>
-        </div>
-      )}
+      {/* Resource handoff remains a canonical, server-counted background state.
+          It is not a modal and requires no manual Return to Focus action. */}
       {showInterruption && interruption && (
         <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
           <div className="flex items-start gap-3">
@@ -1998,7 +2022,7 @@ function ActiveFocusScreenCore({
         {isPaused
           ? t.focusActiveStatusPaused
           : isResourceHandoff
-            ? t.focusActiveStatusResource
+            ? t.focusActiveStudyPhase
             : isReconciliationRequired
               ? t.focusActiveStatusReconciliation
               : activePhase === "break"

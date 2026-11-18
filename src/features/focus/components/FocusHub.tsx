@@ -42,6 +42,7 @@ import {
   type FocusSyncResource,
 } from "../api/focusSync";
 import { FocusRuntimeController } from "../runtime/controller";
+import { confirmedCurrentFocusSession } from "../runtime/currentSession";
 import { createFocusLifecycle } from "../runtime/lifecycle";
 import {
   FOCUS_PLAN_LIMITS,
@@ -60,7 +61,6 @@ import {
   type FocusPlanDraft,
   type FocusPlanDraftItem,
   type FocusPlanRecord,
-  type FocusSessionRecord,
 } from "../focusHubModel";
 import {
   hydrateFocusPlanResourceSelections,
@@ -190,8 +190,9 @@ export function FocusHub({
   });
   const [canonicalPlan, setCanonicalPlan] = useState<FocusPlanRecord | null>(null);
   const canonicalPlanRef = useRef<FocusPlanRecord | null>(null);
-  const [currentSession, setCurrentSession] = useState<FocusSessionRecord | null>(null);
-  const currentSessionRef = useRef<FocusSessionRecord | null>(null);
+  // The live server-confirmed runtime owns Resume. Do not keep a separate
+  // session snapshot that may outlive a confirmed End/abandon operation.
+  const currentSession = confirmedCurrentFocusSession(runtimeState);
   const [draft, setDraft] = useState<FocusPlanDraft>(createEmptyFocusPlanDraft);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
@@ -224,11 +225,6 @@ export function FocusHub({
   const setCanonical = useCallback((plan: FocusPlanRecord | null) => {
     canonicalPlanRef.current = plan;
     setCanonicalPlan(plan);
-  }, []);
-
-  const setSession = useCallback((session: FocusSessionRecord | null) => {
-    currentSessionRef.current = session;
-    setCurrentSession(session);
   }, []);
 
   const loadCanonical = useCallback(
@@ -273,7 +269,14 @@ export function FocusHub({
           return { plan, session };
         }
 
-        setSession(session);
+        // Reconciliation and plan listing run concurrently. If an End has
+        // already changed the runtime, discard this older captured session.
+        const latest = runtimeController.getState();
+        if (latest.sessionAuthority === "CANONICAL" &&
+            latest.session?.id !== session?.id) {
+          setLoadState("ready");
+          return { plan: canonicalPlanRef.current, session: latest.session };
+        }
         setCanonical(plan);
         if (applyDraft) {
           setDraft(plan ? focusPlanToDraft(plan) : createEmptyFocusPlanDraft());
@@ -299,13 +302,13 @@ export function FocusHub({
         throw error;
       }
     },
-    [accountId, runtimeController, setCanonical, setSession],
+    [accountId, runtimeController, setCanonical],
   );
   loadCanonicalRef.current = loadCanonical;
 
   const refreshCanonicalPlan = useCallback(async (canonical = true): Promise<void> => {
     const generation = ++planRequestGenerationRef.current;
-    const session = runtimeController.getState().session ?? currentSessionRef.current;
+    const session = runtimeController.getState().session;
     try {
       const plan = session
         ? await focusApi.getFocusPlan(session.planId, { canonical })
@@ -349,9 +352,6 @@ export function FocusHub({
     lifecycle.set(runtimeController, (lifecycle.get(runtimeController) ?? 0) + 1);
     const unsubscribe = runtimeController.subscribe((next) => {
       setRuntimeState(next);
-      if (next.sessionAuthority !== null || next.runtimeStatus === "ERROR") {
-        setSession(next.session);
-      }
     });
     void runtimeController.initialize().catch(() => {});
     void prefetchFocusHistory(accountId).catch(() => {});
@@ -365,7 +365,7 @@ export function FocusHub({
         }
       });
     };
-  }, [runtimeController, setSession]);
+  }, [runtimeController]);
 
   useEffect(() => {
     if (catalogStatus === "ready") {
@@ -422,8 +422,7 @@ export function FocusHub({
       }
       if (isFocusResourceAffected(event, "plans")) {
         const detail = (event as CustomEvent<FocusInvalidationDetail>).detail;
-        const currentSession =
-          runtimeController.getState().session ?? currentSessionRef.current;
+        const currentSession = runtimeController.getState().session;
         const currentPlanId = currentSession?.planId ?? canonicalPlanRef.current?.id;
         const planAffectsSession = !sessionRouteId ||
           !detail?.planId ||
@@ -803,7 +802,7 @@ export function FocusHub({
   };
 
   const saveDraft = useCallback(async (): Promise<FocusPlanRecord | null> => {
-    if (!isValidFocusPlanDraft(draft) || hasInvalidLecture || currentSessionRef.current) {
+    if (!isValidFocusPlanDraft(draft) || hasInvalidLecture || runtimeController.getState().session) {
       return null;
     }
     setSaving(true);
@@ -904,7 +903,6 @@ export function FocusHub({
         // or grant rewards for a new session before it is completed.
         const reconciled = await runtimeController.reconcile();
         if (reconciled.session) {
-          setSession(reconciled.session);
           onOpenSession(reconciled.session.id);
           return;
         }
@@ -916,7 +914,6 @@ export function FocusHub({
           planItemId: nextItem.id,
         });
       }
-      setSession(result.session);
       onOpenSession(result.session.id);
     } catch (error) {
       if (isConflictStatus(error) || getApiErrorCode(error) === "ACTIVE_SESSION_EXISTS") {
@@ -951,7 +948,6 @@ export function FocusHub({
         current = await runtimeController.reconcile();
       }
       if (current.sessionAuthority === "CANONICAL" && current.session) {
-        setSession(current.session);
         onOpenSession(current.session.id);
         return;
       }
@@ -959,7 +955,6 @@ export function FocusHub({
         planId,
         planItemId,
       });
-      setSession(result.session);
       onOpenSession(result.session.id);
     } finally {
       summaryStartLockRef.current = false;

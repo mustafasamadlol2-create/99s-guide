@@ -36,6 +36,7 @@ import { getFocusClientSource } from "./source";
 import {
   createFocusTimerBaseline,
   estimateFocusDisplay,
+  isServerCountedFocusStatus,
   FocusTimerSnapshotError,
   type FocusTimerBaseline,
 } from "./timer";
@@ -1089,7 +1090,7 @@ export class FocusRuntimeController {
       this.listeners.size === 0 ||
       this.currentState.runtimeStatus !== "READY" ||
       this.currentState.sessionAuthority !== "CANONICAL" ||
-      this.currentState.session?.status !== "ACTIVE"
+      !isServerCountedFocusStatus(this.currentState.session?.status)
     ) {
       return;
     }
@@ -1118,7 +1119,7 @@ export class FocusRuntimeController {
       }
     });
     if (this.currentState.runtimeStatus !== "READY" ||
-        this.currentState.session?.status !== "ACTIVE") {
+        !isServerCountedFocusStatus(this.currentState.session?.status)) {
       this.stopRenderTick();
     } else {
       this.ensureRenderTick();
