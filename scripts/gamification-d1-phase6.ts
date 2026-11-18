@@ -1,5 +1,6 @@
 /** Phase 6 — explicit canonical-to-D1 backfill and per-user parity check. */
 import "dotenv/config";
+import type { PrismaClient } from "@prisma/client";
 import { getPrisma, disconnectPrisma } from "../server/services/prismaClient.js";
 import { getMyGamificationSummary } from "../server/features/gamification/gamificationRead.js";
 import { getBaghdadWeekPeriod } from "../server/features/gamification/challengePeriods.js";
@@ -79,7 +80,7 @@ async function main(): Promise<void> {
   if (/^(1|true|yes|on)$/i.test(String(process.env.PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER_ENABLED || "").trim())) {
     throw new Error("Disable Phase 6 read cutover before rebuilding the replica.");
   }
-  const db = getPrisma();
+  const db: PrismaClient = getPrisma();
   // Fail before touching D1 if Supabase is unavailable at startup.
   await withDatabaseRetry("preflight", () => db.$queryRaw`SELECT 1`);
   const users = await withDatabaseRetry("active accounts", () => db.user.findMany({

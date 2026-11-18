@@ -43,9 +43,17 @@ test("handoff timer credits wall time but caps elapsed active time at target", (
 });
 
 test("handoff and interruption inputs remain bounded and canonical", () => {
+  // Imported academic materials have opaque, non-UUID identifiers. Schema
+  // accepts their shape; the Focus service checks server-side resource ownership.
   assert.equal(resourceHandoffStartSchema.safeParse({
     resourceType: "PDF",
-    resourceId: "not-a-url-or-arbitrary-value",
+    resourceId: "legacy-imported-material-42",
+    idempotencyKey: "handoff-start-1",
+    source: "web",
+  }).success, true);
+  assert.equal(resourceHandoffStartSchema.safeParse({
+    resourceType: "PDF",
+    resourceId: "invalid\u0000control",
     idempotencyKey: "handoff-start-1",
     source: "web",
   }).success, false);

@@ -15,7 +15,7 @@ import {
 } from "../../../../shared/group-focus-realtime/protocol.js";
 import { decodeBase64Url } from "../../../../shared/group-focus-capability/encoding.js";
 import { isGroupFocusPrincipalId } from "../../../../shared/group-focus-capability/contract.js";
-import { groupFocusWorkerOriginCandidates } from "../../../../shared/group-focus-realtime/workerOrigin.js";
+import { groupFocusWorkerOriginCandidates, normalizeGroupFocusWorkerOrigin } from "../../../../shared/group-focus-realtime/workerOrigin.js";
 
 export type GroupFocusRealtimeStatus =
   | "IDLE"
@@ -205,6 +205,14 @@ export class GroupFocusRealtimeRuntime {
   };
 
   constructor(private readonly options: GroupFocusRealtimeRuntimeOptions) {
+    // Do not silently substitute a default origin for malformed configuration:
+    // that could conceal a token-bearing or credential-containing Worker URL.
+    if (!normalizeGroupFocusWorkerOrigin(options.workerUrl)) {
+      throw new GroupFocusRealtimeRuntimeError(
+        "WORKER_URL_INVALID",
+        "Group Focus Worker origin cannot contain credentials or query parameters.",
+      );
+    }
     this.capabilityFetcher = options.capabilityFetcher ?? requestGroupFocusCapability;
     this.readinessFetcher = options.readinessFetcher ?? null;
     this.webSocketFactory = options.webSocketFactory ?? defaultWebSocketFactory;
@@ -496,9 +504,15 @@ export class GroupFocusRealtimeRuntime {
       await new Promise<void>((resolve, reject) => {
       let settled = false;
       let transportError: GroupFocusRealtimeError | null = null;
+      let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
+      const clearHandshakeTimer = () => {
+        if (handshakeTimer !== null) clearTimeout(handshakeTimer);
+        handshakeTimer = null;
+      };
       const fail = (failure: GroupFocusRealtimeRuntimeError) => {
         if (settled) return;
         settled = true;
+        clearHandshakeTimer();
         this.pendingConnectionReject = null;
         if (this.socket === socket) this.socket = null;
         socket.onopen = null;
@@ -527,6 +541,7 @@ export class GroupFocusRealtimeRuntime {
           return;
         }
         settled = true;
+        clearHandshakeTimer();
         this.pendingConnectionReject = null;
         this.reconnectAttempts = 0;
         this.reconnectStartedAt = null;
@@ -591,6 +606,13 @@ export class GroupFocusRealtimeRuntime {
         }
       };
         this.pendingConnectionReject = fail;
+        handshakeTimer = setTimeout(() => {
+          if (generation !== this.generation || settled) return;
+          fail(new GroupFocusRealtimeRuntimeError(
+            "CONNECTION_TIMEOUT",
+            "The Group Focus connection did not respond. Please retry or check the Worker status.",
+          ));
+        }, 12_000);
       });
     } catch (error) {
       // A deployment/restart can invalidate the Durable Object's stored resume
@@ -601,13 +623,20 @@ export class GroupFocusRealtimeRuntime {
         usedResumeToken
         && allowResumeRecovery
         && !this.disposed
-        && this.snapshot.status !== "TERMINAL"
+        && !this.isRuntimeTerminal()
       ) {
         this.clearStoredResumeToken();
         return this.connectWithFreshCapability(reconnecting, false);
       }
       throw error;
     }
+  }
+
+  // Snapshot status can change in WebSocket callbacks while connect() is awaiting.
+  // Read it in a method so TS does not incorrectly treat its earlier narrowing
+  // as permanent after the asynchronous handshake has settled.
+  private isRuntimeTerminal(): boolean {
+    return this.snapshot.status === "TERMINAL";
   }
 
   requestRoomState(): void {

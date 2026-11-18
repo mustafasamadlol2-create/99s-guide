@@ -27,11 +27,10 @@ function entry(
   };
 }
 
-test("read mode defaults safely to hybrid reads and rejects malformed values to the same mode", () => {
-  assert.equal(resolveStudyPointsReadMode(undefined), "LEGACY_PLUS_LEDGER");
-  assert.equal(resolveStudyPointsReadMode("nonsense"), "LEGACY_PLUS_LEDGER");
-  assert.equal(resolveStudyPointsReadMode("LEDGER_ONLY"), "LEDGER_ONLY");
-  assert.equal(resolveStudyPointsReadMode("LEGACY_PLUS_LEDGER"), "LEGACY_PLUS_LEDGER");
+test("Points V2 always reads the canonical ledger, never legacy balances", () => {
+  for (const configured of [undefined, "nonsense", "LEDGER_ONLY", "LEGACY_PLUS_LEDGER"]) {
+    assert.equal(resolveStudyPointsReadMode(configured), "LEDGER_ONLY");
+  }
 });
 
 test("ledger accounting audit accepts a structurally valid award and reversal", () => {
@@ -82,7 +81,7 @@ test("ledger accounting audit reports duplicate source awards, zero rows and bad
   ]);
 });
 
-test("daily cap audit groups effective timestamps by Baghdad calendar day", () => {
+test("unlimited Points V2 does not report a retired Baghdad daily cap", () => {
   const result = auditStudyPointsLedger(
     [
       entry({
@@ -99,10 +98,10 @@ test("daily cap audit groups effective timestamps by Baghdad calendar day", () =
     ],
     new Map(),
   );
-  assert.ok(result.anomalyCodes.includes("CATEGORY_CAP_EXCEEDED"));
+  assert.equal(result.anomalyCodes.includes("CATEGORY_CAP_EXCEEDED"), false);
 });
 
-test("daily category and total caps audit net ledger entries", () => {
+test("daily category and total caps are not enforced for Points V2", () => {
   const result = auditStudyPointsLedger(
     [
       entry({ id: "focus-1", amount: 60, sourceId: "focus-1" }),
@@ -131,11 +130,11 @@ test("daily category and total caps audit net ledger entries", () => {
     ],
     new Map([["focus-1", entry({ id: "focus-1", amount: 60, sourceId: "focus-1" })]]),
   );
-  assert.ok(result.anomalyCodes.includes("CATEGORY_CAP_EXCEEDED"));
-  assert.ok(result.anomalyCodes.includes("TOTAL_DAILY_CAP_EXCEEDED"));
+  assert.equal(result.anomalyCodes.includes("CATEGORY_CAP_EXCEEDED"), false);
+  assert.equal(result.anomalyCodes.includes("TOTAL_DAILY_CAP_EXCEEDED"), false);
 });
 
-test("consistency uniqueness and social bonus caps use Prompt 20 semantics", () => {
+test("consistency remains unique even after social bonus caps were retired", () => {
   const effectiveAt = new Date("2026-09-25T10:00:00.000Z");
   const consistency = Array.from({ length: 2 }, (_, index) =>
     entry({
@@ -162,7 +161,7 @@ test("consistency uniqueness and social bonus caps use Prompt 20 semantics", () 
   );
   const audit = auditStudyPointsLedger([...consistency, ...social], new Map());
   assert.ok(audit.anomalyCodes.includes("DUPLICATE_DAILY_CONSISTENCY_AWARD"));
-  assert.ok(audit.anomalyCodes.includes("SOCIAL_BONUS_DAILY_CAP_EXCEEDED"));
+  assert.equal(audit.anomalyCodes.includes("SOCIAL_BONUS_DAILY_CAP_EXCEEDED"), false);
 });
 
 test("repair planner recommends only a confirmed duplicate positive source reversal", async () => {

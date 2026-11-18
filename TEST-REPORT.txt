@@ -1,0 +1,10 @@
+Local validation on baseline 99s-guide-main (49) (not current production):
+- node --check patcher: PASS
+- guarded check: PASS (5/5 target files)
+- apply: PASS (5/5 patched)
+- idempotent re-check: PASS (0 changes)
+- TypeScript transpile diagnostics (all 5 modified TS/TSX files): 0
+- rollback of earlier four-file candidate: PASS
+- re-check after rollback of earlier candidate: PASS
+Not run: full npm run typecheck/build with node_modules;
+not run: live Render, Supabase, D1, WebSocket, R2, browser or native tests.

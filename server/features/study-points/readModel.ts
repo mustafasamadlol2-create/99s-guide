@@ -27,7 +27,10 @@ type StudyPointsReadDatabase = PrismaClient | Prisma.TransactionClient;
 
 function isPrismaTransactionClient(
   database: StudyPointsReadDatabase,
-): database is Prisma.TransactionClient {
+): boolean {
+  // Prisma.TransactionClient and PrismaClient share delegate methods.
+  // A runtime check is needed here; a TS type predicate incorrectly narrows
+  // the else branch to never on this version of Prisma Client.
   return !("$transaction" in database);
 }
 
@@ -41,8 +44,8 @@ export async function getStudyPointsReadModel(
   assertValidStudyPointsUserId(input.userId);
 
   const ledger = isPrismaTransactionClient(database)
-    ? await aggregateCanonicalStudyPointsLedgerBalance(database, input.userId)
-    : await database.$transaction((tx) =>
+    ? await aggregateCanonicalStudyPointsLedgerBalance(database as Prisma.TransactionClient, input.userId)
+    : await (database as PrismaClient).$transaction((tx) =>
         aggregateCanonicalStudyPointsLedgerBalance(tx, input.userId));
 
   return {

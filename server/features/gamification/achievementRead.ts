@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, UserAchievement } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { getGamificationMetricDefinition } from "./metricRegistry.js";
 import { isGamificationThresholdMet } from "./thresholds.js";
@@ -32,6 +32,8 @@ export type MyAchievementsReadOptions = {
    * prevents duplicate ledger transactions and keeps Engagement reads bounded.
    */
   metricValueOverrides?: ReadonlyMap<string, number | boolean>;
+  /** Fail closed when preparing canonical D1 snapshots; UI reads may degrade. */
+  strictCanonicalReads?: boolean;
 };
 
 /**
@@ -88,6 +90,7 @@ export async function getMyAchievements(
       );
       metricValues.set(metricId, metric.value);
     } catch (error) {
+      if (options?.strictCanonicalReads) throw error;
       // Keep independent achievements isolated. A Focus/Group-Focus provider
       // rollout issue must not hide Points-based achievements or Overview.
       console.warn(
@@ -101,16 +104,19 @@ export async function getMyAchievements(
   // rendering canonical progress. During a rolling migration or temporary DB
   // issue, keep Overview/Achievements usable and reconstruct visible progress
   // from server-owned metrics instead of failing the whole page.
-  const unlockRows = await database.userAchievement.findMany({
+  const unlockRows: UserAchievement[] = await database.userAchievement.findMany({
     where: { userId },
     orderBy: [{ unlockedAt: "asc" }, { achievementId: "asc" }],
   }).catch((error) => {
+    if (options?.strictCanonicalReads) throw error;
     console.warn(
       `[Achievements] Unlock history could not be read; continuing without history: ${error instanceof Error ? error.message : "unknown error"}`,
     );
     return [];
   });
-  const activeUnlockById = new Map(unlockRows.map((row) => [row.achievementId, row]));
+  const activeUnlockById = new Map<string, UserAchievement>(
+    unlockRows.map((row): [string, UserAchievement] => [row.achievementId, row]),
+  );
 
   const achievements = definitions.map((definition): MyAchievementView => {
     const currentValue = metricValues.get(definition.metricId)

@@ -107,6 +107,7 @@ export async function refreshUserGamificationState(
 export async function getMyGamificationSummary(
   userId: string,
   database: GamificationDatabase = getPrisma() as GamificationDatabase,
+  options: { strictCanonicalReads?: boolean } = {},
 ): Promise<MyGamificationSummary> {
   assertGamificationEnabled();
   assertValidStudyPointsUserId(userId);
@@ -167,8 +168,10 @@ export async function getMyGamificationSummary(
       // The Summary request already paid for the canonical Points read. Reuse
       // it instead of opening another ledger transaction for points.total.
       metricValueOverrides: pointMetricOverrides(points),
+      strictCanonicalReads: options.strictCanonicalReads,
     });
   } catch (error) {
+    if (options.strictCanonicalReads) throw error;
     // Overview must still show the user's canonical Points + Level if an
     // optional achievement provider/history read is temporarily unavailable.
     console.warn(

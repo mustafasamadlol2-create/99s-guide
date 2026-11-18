@@ -152,7 +152,7 @@ test("Baghdad logical dates change at Baghdad midnight", () => {
   );
 });
 
-test("the rule registry only activates verified, capped learning sources", () => {
+test("the rule registry activates verified Points V2 learning sources", () => {
   const active = STUDY_POINTS_AWARD_RULES
     .filter((rule) => rule.status === "ACTIVE")
     .map((rule) => rule.reasonCode);
@@ -170,16 +170,18 @@ test("the rule registry only activates verified, capped learning sources", () =>
     "recall.objective_correct",
     "lecture.pdf_completed",
     "lecture.notes_completed",
+    "lecture.video_verified_completed",
+    "mcq.set_verified_pass",
     "lecture.completed",
   ]);
   assert.deepEqual(inactive, []);
   assert.equal(
     STUDY_POINTS_AWARD_RULES.find((rule) => rule.sourceType === "MCQ_ATTEMPT")?.category,
-    "PROGRESS",
+    "MASTERY",
   );
   assert.equal(
     STUDY_POINTS_AWARD_RULES.find((rule) => rule.sourceType === "FLASHCARD_REVIEW")?.category,
-    "PROGRESS",
+    "MASTERY",
   );
 });
 

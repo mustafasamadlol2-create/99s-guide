@@ -36,7 +36,6 @@ function createPayload(overrides: Record<string, unknown> = {}) {
     visibility: "PUBLIC",
     mode: "SHARED_LECTURE",
     sharedLectureId: lectureId,
-    sharedStudyPlan: [],
     focusDurationSeconds: 2_700,
     breakDurationSeconds: 600,
     roundCount: 4,
@@ -145,7 +144,7 @@ test("disabled Group Focus routes return before authentication or service access
   }
 });
 
-test("Group Focus body parser rejects payloads above 32 KiB", async () => {
+test("Group Focus body parser rejects payloads above the configured 2 MiB limit", async () => {
   let authenticationCalls = 0;
   const requireUser: RequestHandler = (_req, _res, next) => {
     authenticationCalls += 1;
@@ -165,7 +164,7 @@ test("Group Focus body parser rejects payloads above 32 KiB", async () => {
     const response = await fetch(`http://127.0.0.1:${address.port}/api/group-focus/rooms`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payload: "x".repeat(33 * 1024) }),
+      body: JSON.stringify({ payload: "x".repeat(2 * 1024 * 1024 + 1024) }),
     });
     assert.equal(response.status, 413);
     assert.deepEqual(await response.json(), {

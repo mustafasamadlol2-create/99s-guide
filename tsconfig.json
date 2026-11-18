@@ -27,6 +27,7 @@
     "node_modules",
     "dist",
     "cloudflare-group-focus-worker",
+    "cloudflare-main-worker.ts",
     "artifacts/mockup-sandbox"
   ]
 }

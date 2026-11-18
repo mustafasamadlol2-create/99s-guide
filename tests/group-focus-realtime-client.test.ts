@@ -96,7 +96,7 @@ test("headless realtime runtime uses the browser-safe subprotocol handshake", as
   await connecting;
 
   assert.equal(requestedRoom, roomId);
-  assert.equal(createdUrl, `wss://focus.example/rooms/${roomId}/connect`);
+  assert.equal(createdUrl, `wss://focus.example/group-focus/rooms/${roomId}/connect`);
   assert.equal(new URL(createdUrl).search, "");
   assert.deepEqual(createdProtocols, [
     "gf-v1",
@@ -495,7 +495,7 @@ test("backend capability Worker origin overrides a stale frontend Worker URL", a
     readinessFetcher: (async (input: RequestInfo | URL) => {
       const url = String(input);
       readinessRequests.push(url);
-      if (url === "https://canonical.example/ready") {
+      if (url === "https://canonical.example/group-focus/ready") {
         return new Response(JSON.stringify({ status: "ready", runtimeReady: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -522,7 +522,7 @@ test("backend capability Worker origin overrides a stale frontend Worker URL", a
   socket.open();
   await connecting;
 
-  assert.equal(readinessRequests[0], "https://canonical.example/ready");
-  assert.equal(createdUrl, `wss://canonical.example/rooms/${roomId}/connect`);
+  assert.equal(readinessRequests[0], "https://canonical.example/group-focus/ready");
+  assert.equal(createdUrl, `wss://canonical.example/group-focus/rooms/${roomId}/connect`);
   runtime.dispose();
 });

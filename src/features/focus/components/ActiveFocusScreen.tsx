@@ -263,6 +263,7 @@ function ActiveFocusScreenCore({
   const endBreakHandlerRef = useRef<() => void>(() => {});
   const [resourceError, setResourceError] = useState(false);
   const [openingResourceId, setOpeningResourceId] = useState<string | null>(null);
+  const resourceOpenInFlightRef = useRef(false);
   const [confirmType, setConfirmType] = useState<"end" | "exit" | null>(null);
   const [immersiveMode, setImmersiveMode] = useState(false);
   const [dismissedInterruption, setDismissedInterruption] = useState<string | null>(null);
@@ -421,6 +422,16 @@ function ActiveFocusScreenCore({
         const snapshot = await focusApi.getFocusBreak(sessionRouteId);
         if (!active) return;
         setBreakSnapshot(snapshot);
+        // Break reads include the canonical Focus session. Reconcile the local
+        // controller if another tab, a resource handoff, or the server changed
+        // the state since the most recent current-session read.
+        const controllerState = controller.getState();
+        if (controllerState.sessionAuthority === "CANONICAL" &&
+            controllerState.session?.id === snapshot.session.id &&
+            controllerState.session.status !== snapshot.session.status &&
+            controllerState.runtimeStatus !== "MUTATING") {
+          controller.acceptMutationSession(snapshot.session);
+        }
         if (snapshot.breakSession) {
           setActivePhase((previous) => previous === "focus" ? "break" : previous);
         } else {
@@ -880,6 +891,17 @@ function ActiveFocusScreenCore({
   }, [activeBreak?.id, activeBreak?.isPaused, breakFinished, online, isRuntimeBusy]);
 
   const handlePhaseChange = (nextPhase: FocusDisplayPhase) => {
+    // A handoff is a distinct canonical state. Return to ACTIVE first: issuing
+    // a Break transition while the session is RESOURCE_HANDOFF always fails.
+    if (canonicalSession?.status === "RESOURCE_HANDOFF" && nextPhase !== "plan") {
+      if (!controller || !mayChangeSession) return;
+      void perform(
+        () => controller.returnFromResourceHandoff(),
+        () => { setActivePhase("focus"); setResourceError(false); },
+        async () => { await controller.reconcile().catch(() => {}); },
+      );
+      return;
+    }
     if (nextPhase === "plan") {
       setActivePhase("plan");
       return;
@@ -1082,7 +1104,7 @@ function ActiveFocusScreenCore({
   };
 
   const openPdf = async (material: Material) => {
-    if (!controller || !mayChangeSession) return;
+    if (!controller || !mayChangeSession || resourceOpenInFlightRef.current) return;
     const popup = NativeBridge.isNativePlatform()
       ? null
       : window.open("about:blank", "_blank");
@@ -1090,6 +1112,7 @@ function ActiveFocusScreenCore({
       setResourceError(true);
       return;
     }
+    resourceOpenInFlightRef.current = true;
     setOpeningResourceId(material.id);
     setResourceError(false);
     try {
@@ -1130,12 +1153,13 @@ function ActiveFocusScreenCore({
       setResourceError(true);
       await controller.reconcile().catch(() => {});
     } finally {
+      resourceOpenInFlightRef.current = false;
       setOpeningResourceId(null);
     }
   };
 
   const openVideo = async (material: Material) => {
-    if (!controller || !mayChangeSession) return;
+    if (!controller || !mayChangeSession || resourceOpenInFlightRef.current) return;
     const parsed = isTrustedExternalUrl(material.fileUrlOrLink);
     if (!parsed) {
       setResourceError(true);
@@ -1148,6 +1172,7 @@ function ActiveFocusScreenCore({
       setResourceError(true);
       return;
     }
+    resourceOpenInFlightRef.current = true;
     setOpeningResourceId(material.id);
     setResourceError(false);
     try {
@@ -1175,6 +1200,7 @@ function ActiveFocusScreenCore({
       setResourceError(true);
       await controller.reconcile().catch(() => {});
     } finally {
+      resourceOpenInFlightRef.current = false;
       setOpeningResourceId(null);
     }
   };
@@ -1901,7 +1927,7 @@ function ActiveFocusScreenCore({
                       key={material.id}
                       type="button"
                       aria-label={`${kind === "PDF" ? t.focusActiveOpenPdf : t.focusActiveOpenVideo}: ${resourceLabel}`}
-                      disabled={!canOpenResources || isOpening}
+                      disabled={!canOpenResources || openingResourceId !== null}
                       onClick={() => openResource(material)}
                       className="flex min-h-12 min-w-0 items-center gap-2 rounded-xl border border-border bg-background px-3 text-start text-sm font-medium text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                     >

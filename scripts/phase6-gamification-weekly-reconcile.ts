@@ -9,6 +9,7 @@
  * Stop on first unresolved read or write error; no destructive backfill.
  */
 import "dotenv/config";
+import type { PrismaClient } from "@prisma/client";
 import { getPrisma, disconnectPrisma } from "../server/services/prismaClient.js";
 import { getBaghdadWeekPeriod } from "../server/features/gamification/challengePeriods.js";
 import { getMyGamificationSummary } from "../server/features/gamification/gamificationRead.js";
@@ -54,7 +55,7 @@ if (/^(1|true|yes|on)$/i.test(process.env.PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER
   throw new Error("Disable Phase 6 cutover before reconciling.");
 }
 
-const db = getPrisma();
+const db: PrismaClient = getPrisma();
 const week = getBaghdadWeekPeriod(new Date());
 const READ_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));

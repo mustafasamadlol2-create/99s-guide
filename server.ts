@@ -17,6 +17,7 @@ import path from "path";
 import fs from "fs/promises";
 import { createServer as createViteServer } from "vite";
 import cookieParser from "cookie-parser";
+import type { LectureProgress } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import http, { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
@@ -1248,7 +1249,7 @@ app.use((req, res, next) => {
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https: wss:",
-      "media-src 'self' blob:",
+      "media-src 'self' blob: https://*.r2.cloudflarestorage.com",
       "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://accounts.google.com",
       "form-action 'self' https://appleid.apple.com",
     ].join("; "));
@@ -11308,12 +11309,14 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
     const safeProgress = Array.from(normalizedProgressByLecture.values())
       .filter((item) => validLectureIds.has(item.lectureId));
 
-    const existingProgressRows = safeProgress.length > 0
+    const existingProgressRows: LectureProgress[] = safeProgress.length > 0
       ? await prismaClient.lectureProgress.findMany({
           where: { userId, lectureId: { in: safeProgress.map((item) => item.lectureId) } },
         })
       : [];
-    const existingProgressMap = new Map(existingProgressRows.map((row) => [row.lectureId, row]));
+    const existingProgressMap = new Map<string, LectureProgress>(
+      existingProgressRows.map((row): [string, LectureProgress] => [row.lectureId, row]),
+    );
 
     // Save/Sync Course progress items. Stale progress rows for lectures that no
     // longer exist are pruned instead of making the whole compatibility sync fail.
@@ -11744,7 +11747,7 @@ app.post("/api/progress/lecture/:lectureId/complete", requireUser, catchAsync(as
     resourceType: rawResourceType as LectureCompletionResourceType,
     materialId,
   });
-  if (!outcome.ok) {
+  if (outcome.ok === false) {
     const message = outcome.code === "LECTURE_NOT_READY"
       ? "Complete the remaining lecture resources before marking the whole lecture complete."
       : outcome.code === "RESOURCE_NOT_FOUND"

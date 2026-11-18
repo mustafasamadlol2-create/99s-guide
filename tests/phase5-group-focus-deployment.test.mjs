@@ -41,7 +41,7 @@ test("Phase 5 Group Focus runtime secret generator emits independent valid keyri
   assert.notEqual(capability["gf-cap-v1"], reconciliation["gf-rec-v1"]);
 });
 
-test("Phase 5 deployment guide requires Worker readiness before frontend exposure", async () => {
+test("Phase 5 deploys Group Focus on the primary same-origin Worker", async () => {
   const guide = await read("cloudflare-group-focus-worker/README.md");
   const env = await read(".env.example");
   const packageJson = JSON.parse(await read("package.json"));
@@ -51,7 +51,11 @@ test("Phase 5 deployment guide requires Worker readiness before frontend exposur
   assert.match(guide, /VITE_GROUP_FOCUS_WORKER_URL/u);
   assert.match(env, /generate-group-focus-runtime-secrets\.mjs/u);
   assert.match(env, /\/ready returns runtimeReady=true/u);
-  assert.match(packageJson.scripts["deploy:group-focus"], /cloudflare-group-focus-worker\/wrangler\.jsonc/u);
-  assert.match(packageJson.scripts.deploy, /deploy:group-focus/u);
+  const mainWorkerConfig = await read("wrangler.jsonc");
+  const mainWorkerEntrypoint = await read("cloudflare-main-worker.ts");
+  assert.match(packageJson.scripts["deploy:group-focus"], /wrangler deploy/u);
+  assert.match(packageJson.scripts.deploy, /wrangler deploy/u);
+  assert.match(mainWorkerConfig, /cloudflare-main-worker\.ts/u);
+  assert.match(mainWorkerEntrypoint, /group-focus\//u);
   assert.match(packageJson.scripts["verify:group-focus-worker"], /verify-group-focus-worker\.mjs/u);
 });

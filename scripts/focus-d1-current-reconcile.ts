@@ -2,6 +2,7 @@
  * Read-only unless --repair is explicitly provided. Never completes a session.
  */
 import "dotenv/config";
+import type { PrismaClient } from "@prisma/client";
 import { getPrisma, disconnectPrisma } from "../server/services/prismaClient.js";
 import { buildFocusSessionProjection } from "../server/features/study-core/projection.js";
 import { enqueuePrivateD1Projection } from "../server/services/privateD1Sync.js";
@@ -34,7 +35,7 @@ async function readWorker(userId: string): Promise<Array<Record<string, unknown>
 }
 
 async function main(): Promise<void> {
-  const db = getPrisma();
+  const db: PrismaClient = getPrisma();
   const recent = onlyUser ? [] : await db.focusSession.findMany({
     select: { userId: true }, orderBy: { updatedAt: "desc" }, take: all ? 10000 : 50,
   });
@@ -86,9 +87,9 @@ async function main(): Promise<void> {
         session: {
           id: row.id, userId: row.userId, planId: row.planId,
           planItemId: row.planItemId, lectureId: row.lectureId,
-          status: row.status, startedAt: row.startedAt,
-          plannedEndAt: row.plannedEndAt, actualEndedAt: row.actualEndedAt,
-          lastCheckpointAt: row.lastCheckpointAt, activeSeconds: row.activeSeconds,
+          status: row.status, startedAt: row.startedAt?.toISOString() ?? null,
+          plannedEndAt: row.plannedEndAt?.toISOString() ?? null, actualEndedAt: row.actualEndedAt?.toISOString() ?? null,
+          lastCheckpointAt: row.lastCheckpointAt?.toISOString() ?? null, activeSeconds: row.activeSeconds,
           pauseSeconds: row.pauseSeconds, completionReason: row.completionReason,
           updatedAt: row.updatedAt,
         },

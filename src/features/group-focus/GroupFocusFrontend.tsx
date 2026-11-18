@@ -133,6 +133,10 @@ export function GroupFocusFrontend({
   );
   const isHome = route.kind === "home";
   const mountedRef = useRef(true);
+  // This is the canonical result of our own successful create mutation, not
+  // speculative room state. Avoid blocking the first socket connection on a
+  // redundant GET that may wait on a cold database connection.
+  const justCreatedRoomRef = useRef<GroupFocusRoomDetail | null>(null);
 
   const accessibleLectures = useMemo(
     () => lectures.filter((lecture) => CANONICAL_UUID.test(lecture.id)),
@@ -335,6 +339,13 @@ export function GroupFocusFrontend({
         idempotencyKey: createAttempt.current.idempotencyKey,
       });
       createAttempt.current = null;
+      justCreatedRoomRef.current = {
+        room: result.room,
+        membership: result.membership,
+        effectiveLectureId: result.room.mode === "SHARED_LECTURE"
+          ? result.room.sharedLectureId
+          : result.membership.selectedLectureId,
+      };
       setInviteToken(null);
       onRouteChange(`room/${encodeURIComponent(result.room.id)}`);
     } catch (error) {
@@ -416,6 +427,16 @@ export function GroupFocusFrontend({
     setActionPending(null);
     setMemberRemovalPendingUserId(null);
 
+    const freshlyCreated = justCreatedRoomRef.current;
+    const verifiedCreate = freshlyCreated?.room.id === route.roomId &&
+      freshlyCreated.membership?.userId === accountId &&
+      freshlyCreated.membership.status === "ACTIVE";
+    if (verifiedCreate && freshlyCreated) {
+      setRoomDetail(freshlyCreated);
+      setRoomStatus("ready");
+      justCreatedRoomRef.current = null;
+    }
+
     void getGroupFocusRoom(route.roomId).then((detail) => {
       if (cancelled || !mountedRef.current) return;
       setRoomDetail(detail);
@@ -439,6 +460,10 @@ export function GroupFocusFrontend({
       }
     }).catch((error: unknown) => {
       if (cancelled || !mountedRef.current) return;
+      // The create response already proved membership. WebSocket capability
+      // issuance will independently revalidate it. Do not turn a temporary
+      // detail-fetch outage into a false "room unavailable" error.
+      if (verifiedCreate) return;
       setRoomStatus("error");
       setRoomError(groupFocusErrorMessage(
         error,
@@ -469,7 +494,9 @@ export function GroupFocusFrontend({
         accountId,
         roomId: route.roomId,
         workerUrl,
-        readinessFetcher: (input, init) => fetch(input, init),
+        // Capability issuance already verified membership and returns the canonical
+        // Worker origin. Avoid an extra sequential HTTP /ready probe (potentially
+        // multiple 5-second retries) before the authenticated WebSocket handshake.
       });
     } catch (error) {
       setRoomError(groupFocusErrorMessage(

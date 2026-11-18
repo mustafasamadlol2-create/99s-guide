@@ -39,7 +39,9 @@ export async function buildCanonicalGamificationD1Snapshot(
   // Re-read Points after Challenge refresh, so the snapshot never omits the
   // newly awarded Challenge Points.
   const challenges = await getMyChallenges(userId);
-  const afterChallenges = await getMyGamificationSummary(userId);
+  // Snapshot writes must never publish partially degraded Achievements on a
+  // transient database failure. Keep the regular Overview degraded-read UX.
+  const afterChallenges = await getMyGamificationSummary(userId, undefined, { strictCanonicalReads: true });
   if (
     afterChallenges.ruleSetVersion !== challenges.ruleSetVersion ||
     !Array.isArray(afterChallenges.achievements) ||

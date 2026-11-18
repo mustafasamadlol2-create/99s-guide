@@ -1,0 +1,16 @@
+{
+  "extends": "./cloudflare-group-focus-worker/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "cloudflare-main-worker.ts",
+    "cloudflare-group-focus-worker/src/**/*.ts",
+    "cloudflare-group-focus-worker/worker-configuration.d.ts",
+    "shared/group-focus-capability/**/*.ts",
+    "shared/group-focus-realtime/**/*.ts",
+    "shared/group-focus-reconciliation/**/*.ts"
+  ]
+}

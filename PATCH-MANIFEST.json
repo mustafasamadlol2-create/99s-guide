@@ -1,0 +1,87 @@
+{
+  "project": "99s-guide-1",
+  "kind": "modified-files-only",
+  "original": "99s-guide-1(1).zip",
+  "changed_files": [
+    {
+      "path": "scripts/focus-d1-current-reconcile.ts",
+      "sha256": "4d20b9b7fe6b52023e0bba0b6ee48ec2068ca7ce0f7b779f21dd040fa5ffceae"
+    },
+    {
+      "path": "scripts/gamification-d1-phase6.ts",
+      "sha256": "c2b57c64889575711a4bec913fa7c02c0250e61108bd7b242657b0797b67bbf9"
+    },
+    {
+      "path": "scripts/phase6-gamification-weekly-reconcile.ts",
+      "sha256": "9fa38c7dcba888a703612ec7a1bcd6cff58ea9a57adaebbf21b52defa26430e7"
+    },
+    {
+      "path": "server.ts",
+      "sha256": "3e77be47d65570e2983edb75a84d2e22b4c7e20ae4e7577c28cb29c0360ac143"
+    },
+    {
+      "path": "server/features/gamification/achievementRead.ts",
+      "sha256": "e017ca04ff0869b072ddf9412092dde13d4439f44a3a2bc460ea8bce1b9a4fb6"
+    },
+    {
+      "path": "server/features/gamification/d1Replica.ts",
+      "sha256": "fb3448f429fa7886469edc2905405723baea0bc3d6742054941ffa2ab4f01378"
+    },
+    {
+      "path": "server/features/gamification/gamificationRead.ts",
+      "sha256": "13d73f5686fdcd13395acd5d302d6198abbe27292cb63b2c2e4c816e19dc7cf2"
+    },
+    {
+      "path": "server/features/study-points/index.ts",
+      "sha256": "e656658a5de4699c736e0cd48ce512ecc97c919924c20d37992dd5968a54c565"
+    },
+    {
+      "path": "server/features/study-points/readModel.ts",
+      "sha256": "bbb6a28a46869137b81eb44ed87717c86cd614cd1a098e56b76a47054a3a4c67"
+    },
+    {
+      "path": "src/features/group-focus/GroupFocusFrontend.tsx",
+      "sha256": "749c2fada69cb69d082d74c76909d9cae63f1b56b5e0b2ab6ff12f42055710ed"
+    },
+    {
+      "path": "src/features/group-focus/runtime/groupFocusRealtime.ts",
+      "sha256": "c60f1b4409930c633aa4f41966456947890ffa259a7f3145754e983851967fb7"
+    },
+    {
+      "path": "tests/focus-handoff-unit.test.ts",
+      "sha256": "6e1f34a39cbae88dce13c1d6c08b02d4c86f146f6cd6a945d82d1539faef9c4d"
+    },
+    {
+      "path": "tests/gamification-challenges-route.test.ts",
+      "sha256": "fe9bb0494d299ea0210c1131d676c1cbc69f7a67ae99b0f092e1a5214c65de97"
+    },
+    {
+      "path": "tests/gamification-metrics.test.ts",
+      "sha256": "cee6965628b40f4b25552853c6460ebc9d77b6292352953c655b1a9e5c792fd7"
+    },
+    {
+      "path": "tests/group-focus-contracts.test.ts",
+      "sha256": "af9eb4afff1f0c4926847500b21bdfec3040dbb371160d38b90f745d1e4fbb21"
+    },
+    {
+      "path": "tests/group-focus-realtime-client.test.ts",
+      "sha256": "376764c000c64e9018f127dface7b7f6590d83b9b4135421171a6f310922ddef"
+    },
+    {
+      "path": "tests/phase5-group-focus-deployment.test.mjs",
+      "sha256": "11c2373cbca33249165eecba10991a505c6d4eaebc3e1bcba4dd8e7cc2fc052e"
+    },
+    {
+      "path": "tests/study-points-awards.test.ts",
+      "sha256": "0fd6bab17932c9150c2ff80f1303bede66621fae9bd95f8d5b4d4e0d8ffaea43"
+    },
+    {
+      "path": "tests/study-points-balance.test.ts",
+      "sha256": "88e1aa29804a5b8027673bc6e9512e2a1d598c4ea1a9931e9f0028b8ebd5c865"
+    },
+    {
+      "path": "tests/study-points-unified-read-mode.test.ts",
+      "sha256": "844d1419c3a0659bba4b2b9dea8473183f7888137d62694b365e4dbea18eceb4"
+    }
+  ]
+}

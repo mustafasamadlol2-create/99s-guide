@@ -13,11 +13,20 @@ function createReadOnlyDatabase() {
     groupWhere?: Record<string, unknown>;
     writes: number;
   } = { writes: 0 };
+  let ledgerQuery = 0;
   const database = {
     $transaction: async (
       callback: (tx: Record<string, unknown>) => Promise<unknown>,
     ) =>
       callback({
+        $queryRaw: async () => (++ledgerQuery % 2 === 1
+          ? [
+              { category: "FOCUS", amount: "12" },
+              { category: "MASTERY", amount: "25" },
+              { category: "PROGRESS", amount: "8" },
+              { category: "CONSISTENCY", amount: "4" },
+            ]
+          : [{ count: "6" }]),
         studyPointsBalanceProjection: {
           findUnique: async () => ({
             focusPoints: 12,
@@ -103,7 +112,7 @@ test("providers read canonical points, personal Focus, and Group Focus values", 
       database,
     );
 
-    assert.equal(pointTotal.value, 179);
+    assert.equal(pointTotal.value, 49);
     assert.equal(focusPoints.value, 12);
     assert.equal(completedSessions.value, 3);
     assert.equal(focusSeconds.value, 8_400);

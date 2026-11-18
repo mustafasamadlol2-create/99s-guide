@@ -5,15 +5,15 @@ import { resolveUnifiedStudyPointsReadMode } from "../server/features/study-poin
 test("active gamification reads never use the legacy balance alone", () => {
   assert.equal(
     resolveUnifiedStudyPointsReadMode("LEGACY_ONLY"),
-    "LEGACY_PLUS_LEDGER",
+    "LEDGER_ONLY",
   );
   assert.equal(
     resolveUnifiedStudyPointsReadMode("LEGACY_PLUS_LEDGER"),
-    "LEGACY_PLUS_LEDGER",
+    "LEDGER_ONLY",
   );
   assert.equal(
     resolveUnifiedStudyPointsReadMode("LEDGER_ONLY"),
     "LEDGER_ONLY",
   );
-  assert.equal(resolveUnifiedStudyPointsReadMode(undefined), "LEGACY_PLUS_LEDGER");
+  assert.equal(resolveUnifiedStudyPointsReadMode(undefined), "LEDGER_ONLY");
 });

@@ -25,6 +25,7 @@ function responseFor(userId: string): MyChallengesResponse {
       current: 1,
       target: 3,
       progressRatio: 1 / 3,
+      rewardPoints: 0,
       status: "ACTIVE",
       startsAt,
       endsAt,

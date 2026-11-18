@@ -248,7 +248,7 @@ export function FocusAudioPlanningCard({
           >
             {sourceDisplayName ?? t("focusHubAudioNoSource")}
           </p>
-          {hasSelection && (
+          {audio.sourceType === "USER_AUDIO" && (
             <p className="text-[11px] leading-4 text-slate-500 dark:text-slate-400">
               {t("focusHubAudioLocalOnly")}
             </p>
@@ -310,7 +310,7 @@ export function FocusAudioPlanningCard({
         </div>
       </div>
 
-      {hasSelection && (
+      {audio.sourceType === "USER_AUDIO" && (
         <p className="focus-audio-session mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
           {t("focusHubAudioSessionOnly")}
         </p>
@@ -335,7 +335,9 @@ export function FocusAudioPlanningCard({
 
       {(localError || audio.state === "ERROR") && (
         <p role="status" className="focus-audio-status mt-2 text-sm text-rose-700 dark:text-rose-300">
-          {t("focusHubAudioError")}
+          {audio.sourceType === "AMBIENT" && sharedSounds.some((sound) => sound.id === audio.ambientTrackId)
+            ? (isRtl ? "تعذّر تشغيل الصوت المشترك. تحقق من الوصول إلى الملف في R2 وإعدادات المتصفح، ثم اختر الصوت من جديد." : "Shared sound could not play. Check R2 media access/browser policy, then select the sound again.")
+            : t("focusHubAudioError")}
         </p>
       )}
     </section>
