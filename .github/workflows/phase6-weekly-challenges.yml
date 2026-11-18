@@ -63,6 +63,8 @@ jobs:
           node_modules/.bin/prisma --version
       - name: Generate Prisma Client
         run: npx --no-install prisma generate
+      - name: Diagnose Supabase access safely (READ_ONLY)
+        run: node scripts/phase6-github-supabase-preflight.cjs
       - name: Run bounded weekly reconciliation
         shell: bash
         env:
