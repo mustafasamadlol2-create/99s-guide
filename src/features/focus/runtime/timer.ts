@@ -89,7 +89,10 @@ export function estimateFocusDisplay(
     };
   }
 
-  const displayRemainingSeconds = session.status === "ACTIVE"
+  // RESOURCE_HANDOFF is an active, server-counted study segment. Opening a
+  // PDF/YouTube tab must not freeze the visible timer. PAUSED remains frozen.
+  const countsWallTime = session.status === "ACTIVE" || session.status === "RESOURCE_HANDOFF";
+  const displayRemainingSeconds = countsWallTime
     ? Math.max(0, Math.ceil(baseline.remainingSecondsAtSync - elapsedMilliseconds / 1000))
     : baseline.remainingSecondsAtSync;
 

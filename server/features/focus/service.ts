@@ -51,6 +51,7 @@ import {
 } from "./schemas.js";
 import { FocusRepository, type FocusTransaction } from "./repository.js";
 import { decodeFocusHistoryCursor, encodeFocusHistoryCursor } from "./historyCursor.js";
+import { nextUnfinishedFocusPlanItem } from "./planSelection.js";
 import type { StudyEventRecord } from "../study-events/types.js";
 import { ingestStudyEvent } from "../study-events/service.js";
 import { enqueuePrivateD1Projection } from "../../services/privateD1Sync.js";
@@ -1731,14 +1732,21 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         }) as { id: string; planId: string; planItemId: string; startedAt: Date | null } | null;
 
         if (existing) {
-          if (existing.planId !== input.planId || existing.planItemId !== input.planItemId) {
-            throw new FocusError("IDEMPOTENCY_CONFLICT", "Start key was already used for another plan item.");
-          }
           const session = await ownedSession(tx, userId, existing.id);
           const key = focusEventKey("started", session.id, input.idempotencyKey);
           const prior = await findFocusEvent(tx, userId, key);
           if (!prior) {
             throw new FocusError("RECONCILIATION_REQUIRED", "The stored session is missing its start event.");
+          }
+          // For an exhausted first item the server may have advanced to the
+          // next available item. Compare the ORIGINAL client request, not the
+          // chosen item, so a lost response can be replayed with the same key.
+          const priorPayload = isRecord(prior.payload) ? prior.payload : {};
+          const requestedItemId = typeof priorPayload.requestedPlanItemId === "string"
+            ? priorPayload.requestedPlanItemId
+            : existing.planItemId; // backwards compatibility with older events
+          if (existing.planId !== input.planId || requestedItemId !== input.planItemId) {
+            throw new FocusError("IDEMPOTENCY_CONFLICT", "Start key was already used for another plan item.");
           }
           const idempotency = await ingestFocusEvent(tx, {
             eventType: "focus_session_started",
@@ -1749,7 +1757,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             lectureId: session.lectureId,
             focusSessionId: session.id,
             evidenceClass: "CLIENT_OBSERVED",
-            payload: {},
+            payload: priorPayload,
           });
           const count = await completedCount(tx, userId, session.planItemId);
           return {
@@ -1773,8 +1781,8 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         if (plan.status !== "ACTIVE") {
           throw new FocusError("PLAN_ARCHIVED", "Archived Focus Plans cannot start sessions.");
         }
-        const item = plan.items.find((candidate) => candidate.id === input.planItemId);
-        if (!item) throw new FocusError("PLAN_ITEM_NOT_FOUND", "Focus Plan item was not found.");
+        const requestedItem = plan.items.find((candidate) => candidate.id === input.planItemId);
+        if (!requestedItem) throw new FocusError("PLAN_ITEM_NOT_FOUND", "Focus Plan item was not found.");
 
         // Resource selections are study-workspace metadata, not an authority
         // boundary. A resource may be renamed/removed between planning and
@@ -1786,10 +1794,17 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           throw new FocusError("ACTIVE_SESSION_EXISTS", "A solo Focus Session is already in progress.");
         }
 
-        const priorCompletedCount = await completedCount(tx, userId, item.id);
-        if (priorCompletedCount >= item.sessionCount) {
-          throw new FocusError("PLANNED_SESSIONS_COMPLETE", "All planned sessions for this item are complete.");
+        // Select under the canonical user lock; never restart a completed
+        // plan item or skip remaining lectures merely because item #1 is done.
+        const selection = await nextUnfinishedFocusPlanItem(
+          plan.items,
+          input.planItemId,
+          (itemId) => completedCount(tx, userId, itemId),
+        );
+        if (!selection) {
+          throw new FocusError("PLANNED_SESSIONS_COMPLETE", "All planned sessions for this plan are complete.");
         }
+        const { item, priorCompletedCount } = selection;
         if (!canTransitionFocusSession("CREATED", "ACTIVE")) {
           throw new FocusError("INVALID_SESSION_STATE", "A Focus Session cannot start from CREATED.");
         }
@@ -1821,7 +1836,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           lectureId: session.lectureId,
           focusSessionId: session.id,
           evidenceClass: "CLIENT_OBSERVED",
-          payload: {},
+          payload: { requestedPlanItemId: input.planItemId },
         });
         if (idempotency !== "FIRST_SEEN") {
           throw new FocusError("RECONCILIATION_REQUIRED", "A new session unexpectedly replayed its start event.");

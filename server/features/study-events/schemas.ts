@@ -6,6 +6,10 @@ import type { StudyEventType } from "../study-core/events.js";
 
 const boundedText = (max = 200) => z.string().trim().min(1).max(max);
 const emptyPayload = z.object({}).strict();
+// The original item requested for an idempotent Solo start can differ from
+// the next unfinished item selected under the canonical per-user lock.
+// Old start events with {} remain valid for backwards compatibility.
+const focusStartedPayload = z.object({ requestedPlanItemId: z.string().uuid().optional() }).strict();
 
 export const MAX_PAYLOAD_BYTES = 32 * 1024;
 export const MAX_ACTIVE_SECONDS = 24 * 60 * 60;
@@ -99,7 +103,7 @@ const groupFocusSummary = groupFocusIdentity.extend({
 export const STUDY_EVENT_PAYLOAD_SCHEMAS: Readonly<
   Record<StudyEventType, z.ZodTypeAny>
 > = {
-  focus_session_started: emptyPayload,
+  focus_session_started: focusStartedPayload,
   focus_session_paused: emptyPayload,
   focus_session_resumed: emptyPayload,
   focus_session_completed: focusCompletion,

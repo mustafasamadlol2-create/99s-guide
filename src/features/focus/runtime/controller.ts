@@ -981,10 +981,11 @@ export class FocusRuntimeController {
     switch (pending.operation) {
       case "start": {
         try {
-          const [planId, planItemId] = JSON.parse(pending.fingerprint) as [string, string];
-          return session.status === "ACTIVE" &&
-            session.planId === planId &&
-            session.planItemId === planItemId;
+          const [planId] = JSON.parse(pending.fingerprint) as [string, string];
+          // The server can select the next unfinished plan item when the
+          // requested one was already completed. Canonical ownership and
+          // the single-session invariant are enforced on the backend.
+          return session.status === "ACTIVE" && session.planId === planId;
         } catch {
           return false;
         }

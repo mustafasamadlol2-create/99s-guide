@@ -363,6 +363,20 @@ function ActiveFocusScreenCore({
     };
   }, []);
 
+  // A bookmarked/old Focus URL must not strand a user while a different
+  // canonical session is running. Redirect only after server confirmation.
+  const redirectedFromRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (runtime.sessionAuthority !== "CANONICAL" || !runtime.session?.id ||
+        runtime.session.id === sessionRouteId) {
+      redirectedFromRef.current = null;
+      return;
+    }
+    if (redirectedFromRef.current === sessionRouteId) return;
+    redirectedFromRef.current = sessionRouteId;
+    onOpenSession(runtime.session.id);
+  }, [runtime.sessionAuthority, runtime.session?.id, sessionRouteId, onOpenSession]);
+
   const canonicalSession = runtime.session;
   const canonicalRouteMatch = Boolean(
     canonicalSession &&

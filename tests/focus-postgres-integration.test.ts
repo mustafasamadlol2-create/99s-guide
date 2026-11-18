@@ -1064,3 +1064,43 @@ test("real PostgreSQL final zero-break completion creates neither a break nor a 
     assert.equal((await focus.currentSession(fixture.userId)).session, null);
   });
 });
+test("real PostgreSQL advances an exhausted first lecture and replays the original idempotency key", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    let clock = new Date(T0);
+    const focus = makeService(() => new Date(clock));
+    const plan = await focus.createPlan(fixture.userId, {
+      title: "Solo queue progression",
+      timezone: "Asia/Baghdad",
+      items: [fixture.lectureId, fixture.otherLectureId].map((lectureId, i) => ({
+        lectureId,
+        sequence: i + 1,
+        sessionCount: 1,
+        focusDurationSeconds: 1_500,
+        breakDurationSeconds: 0,
+        includeMcq: false,
+        includeFlashcards: false,
+        includeVideo: false,
+      })),
+    });
+    const requestedItemId = plan.items[0].id;
+    const first = await focus.startSession(fixture.userId, {
+      planId: plan.id, planItemId: requestedItemId,
+      idempotencyKey: "solo-progression-first", source: "web",
+    });
+    clock = new Date(T0.getTime() + 26 * 60_000);
+    await focus.completeSession(fixture.userId, first.session.id, {
+      idempotencyKey: "solo-progression-first-complete",
+    });
+    const key = "solo-progression-next";
+    const input = { planId: plan.id, planItemId: requestedItemId, idempotencyKey: key, source: "web" as const };
+    const advanced = await focus.startSession(fixture.userId, input);
+    assert.equal(advanced.session.planItemId, plan.items[1].id);
+    const replay = await focus.startSession(fixture.userId, input);
+    assert.equal(replay.session.id, advanced.session.id);
+    assert.equal(replay.idempotency, "REPLAY_SAME_PAYLOAD");
+    await assert.rejects(focus.startSession(fixture.userId, {
+      ...input, planItemId: plan.items[1].id,
+    }), { code: "IDEMPOTENCY_CONFLICT" });
+    assert.equal(await client().focusSession.count({ where: { userId: fixture.userId } }), 2);
+  });
+});

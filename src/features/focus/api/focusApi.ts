@@ -62,6 +62,7 @@ export interface FocusApiRequestOptions extends RequestInit {
   retries?: number;
   bypassCache?: boolean;
   requestKey?: string;
+  silent?: boolean;
 }
 
 type Requester = (
@@ -692,9 +693,14 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       requestOptions(),
       current,
     ),
-    startFocusSession: (input) => call("/api/focus/sessions/start", requestOptions("POST", {
-      planId: input.planId, planItemId: input.planItemId, idempotencyKey: input.idempotencyKey, source: input.source,
-    }), mutation),
+    startFocusSession: (input) => call("/api/focus/sessions/start", {
+      ...requestOptions("POST", {
+        planId: input.planId, planItemId: input.planItemId, idempotencyKey: input.idempotencyKey, source: input.source,
+      }),
+      // FocusHub handles PLANNED_SESSIONS_COMPLETE by advancing or starting a
+      // new cycle. Avoid showing a transient global error toast on that path.
+      silent: true,
+    }, mutation),
     pauseFocusSession: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/pause`, requestOptions("POST", {
       idempotencyKey: input.idempotencyKey, source: input.source,
     }), mutation),
@@ -783,7 +789,9 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       `post-actions:${id}`,
       id,
       `/api/focus/sessions/${encodeURIComponent(id)}/post-actions`,
-      requestOptions(),
+      // This probe may legitimately return 409 for an abandoned/expired old
+      // route. It is handled by the screen, not as a global toast error.
+      { ...requestOptions(), silent: true },
       postFocusActionContext,
     ),
     getSessionSummary: (id) => read(

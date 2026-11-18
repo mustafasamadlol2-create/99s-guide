@@ -24,6 +24,7 @@ import {
   Check,
 } from "lucide-react";
 import type { DatabaseLecture, Subject } from "../../../core/types";
+import type { FocusSessionMutationResult } from "../../../../server/features/focus/types";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { FOCUS_AUDIO_ENABLED } from "../../../config/featureFlags";
 import {
@@ -890,10 +891,31 @@ export function FocusHub({
         return;
       }
 
-      const result = await runtimeController.start({
-        planId: plan.id,
-        planItemId: firstPlanItem.id,
-      });
+      let result: FocusSessionMutationResult;
+      try {
+        result = await runtimeController.start({
+          planId: plan.id,
+          planItemId: firstPlanItem.id,
+        });
+      } catch (error) {
+        if (getApiErrorCode(error) !== "PLANNED_SESSIONS_COMPLETE") throw error;
+        // If a plan's *entire* queue was previously completed, explicitly
+        // start a new study cycle with fresh item IDs. Never reset old history
+        // or grant rewards for a new session before it is completed.
+        const reconciled = await runtimeController.reconcile();
+        if (reconciled.session) {
+          setSession(reconciled.session);
+          onOpenSession(reconciled.session.id);
+          return;
+        }
+        const freshPlan = await saveDraft();
+        const nextItem = freshPlan?.items.slice().sort((a, b) => a.sequence - b.sequence)[0];
+        if (!freshPlan || !nextItem) return;
+        result = await runtimeController.start({
+          planId: freshPlan.id,
+          planItemId: nextItem.id,
+        });
+      }
       setSession(result.session);
       onOpenSession(result.session.id);
     } catch (error) {
