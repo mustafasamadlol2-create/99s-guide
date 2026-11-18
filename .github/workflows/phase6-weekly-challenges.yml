@@ -51,10 +51,18 @@ jobs:
               exit 1
             fi
           done
-      - name: Install locked dependencies
-        run: npm ci
+      # NODE_ENV=production normally omits devDependencies (including prisma and tsx).
+      # They are required for this maintenance workflow even in READ_ONLY mode.
+      - name: Install locked dependencies (including maintenance tools)
+        run: npm ci --include=dev
+      - name: Verify maintenance CLIs exist locally
+        shell: bash
+        run: |
+          test -x node_modules/.bin/prisma || { echo '::error::Missing local prisma'; exit 1; }
+          test -x node_modules/.bin/tsx || { echo '::error::Missing local tsx'; exit 1; }
+          node_modules/.bin/prisma --version
       - name: Generate Prisma Client
-        run: npx prisma generate
+        run: npx --no-install prisma generate
       - name: Run bounded weekly reconciliation
         shell: bash
         env:
