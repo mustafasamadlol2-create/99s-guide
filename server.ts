@@ -121,6 +121,7 @@ import {
 } from "./server/features/lecture-progress/completion.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import { publishGamificationD1Snapshot, readGamificationD1Snapshot } from "./server/features/gamification/d1Replica.js";
+import { readWeeklyChallengesWithBoundaryBridge } from "./server/features/gamification/weeklyChallengeBoundaryRead.js";
 import { phase6GamificationReadCutoverEnabled } from "./server/services/privateD1Read.js";
 import {
   flashcardStudyQualityFromStatus,
@@ -8764,7 +8765,11 @@ app.use(
   createChallengesRouter({
     requireUser,
     getMyChallenges: async (userId) => phase6GamificationReadCutoverEnabled()
-      ? (await readGamificationD1Snapshot(userId, { requireCurrentChallengeWeek: true })).challenges
+      ? readWeeklyChallengesWithBoundaryBridge(
+        userId,
+        async (id) => (await readGamificationD1Snapshot(id, { requireCurrentChallengeWeek: true })).challenges,
+        getMyChallenges,
+      )
       : getMyChallenges(userId),
   }),
 );
