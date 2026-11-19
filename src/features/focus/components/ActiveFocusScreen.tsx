@@ -324,11 +324,12 @@ function ActiveFocusScreenCore({
         }
       } catch (error) {
         if (active) {
-          setCompletedRoute({ status: "unavailable" });
-          if (isRetryableFocusReadError(error) &&
-              retryTimer === null &&
-              online &&
-              (typeof navigator === "undefined" || navigator.onLine)) {
+          const retryable = isRetryableFocusReadError(error) && online &&
+            (typeof navigator === "undefined" || navigator.onLine);
+          // A transient read failure is NOT evidence that a Focus session is
+          // obsolete. Keep the checking view until a canonical result exists.
+          setCompletedRoute({ status: retryable ? "loading" : "unavailable" });
+          if (retryable && retryTimer === null) {
             const delay = Math.min(30_000, 750 * (2 ** Math.min(retryAttempt, 6)));
             retryAttempt += 1;
             retryTimer = window.setTimeout(() => {
@@ -1380,20 +1381,14 @@ function ActiveFocusScreenCore({
     canonicalSession.id !== sessionRouteId &&
     runtime.sessionAuthority === "CANONICAL"
   ) {
+    // The route is redirected by the effect above. Avoid flashing an
+    // alarming "session is no longer current" screen for a single frame
+    // during resource-return reconciliation. A verified new session still
+    // takes precedence and the old timer is never shown for the wrong ID.
     return (
-      <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto flex min-h-[70vh] max-w-3xl items-center px-4 py-10">
-        <section className="w-full rounded-3xl border border-border bg-card p-6 text-center shadow-sm sm:p-10">
-          <CircleAlert className="mx-auto size-10 text-amber-500" aria-hidden="true" />
-          <h1 className="mt-4 text-xl font-semibold text-foreground">{t.focusActiveNotCurrentTitle}</h1>
-          <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">{t.focusActiveSessionOutOfDate}</p>
-          <button
-            type="button"
-            onClick={() => onOpenSession(canonicalSession.id)}
-            className="mt-6 min-h-11 rounded-xl bg-primary px-4 font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {t.focusActiveOpenCurrent}
-          </button>
-        </section>
+      <div dir={language === "ar" ? "rtl" : "ltr"}
+        className="mx-auto flex min-h-[70vh] max-w-3xl items-center justify-center px-4 py-10">
+        <p role="status" className="text-sm text-muted-foreground">{t.focusActiveChecking}</p>
       </div>
     );
   }
@@ -2065,10 +2060,28 @@ function FocusTimer({
     () => controller.getState().displayRemainingSeconds,
   );
 
-  useEffect(() => controller.subscribe((state) => {
-    setRemainingSeconds((current) =>
-      current === state.displayRemainingSeconds ? current : state.displayRemainingSeconds);
-  }), [controller]);
+  useEffect(() => {
+    const unsubscribe = controller.subscribe((state) => {
+      setRemainingSeconds((current) =>
+        current === state.displayRemainingSeconds ? current : state.displayRemainingSeconds);
+    });
+    const redrawOnReturn = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        // No server request and no Focus mutation: refresh before the next
+        // throttled 1-second interval or any network reconciliation completes.
+        controller.refreshDisplay();
+      }
+    };
+    window.addEventListener("focus", redrawOnReturn);
+    window.addEventListener("pageshow", redrawOnReturn);
+    document.addEventListener("visibilitychange", redrawOnReturn);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("focus", redrawOnReturn);
+      window.removeEventListener("pageshow", redrawOnReturn);
+      document.removeEventListener("visibilitychange", redrawOnReturn);
+    };
+  }, [controller]);
 
   const clockText = remainingSeconds === null
     ? "--:--"
