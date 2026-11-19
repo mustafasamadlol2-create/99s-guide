@@ -580,10 +580,31 @@ export class FocusRuntimeController {
   private async fetchCanonicalCurrent(generation: number, canonical: boolean): Promise<FocusRuntimeState> {
     try {
       let result = await this.api.getCurrentFocusSession({ canonical });
-      if (!canonical && result.session?.id === this.returnedHandoffSessionId &&
-          result.session.status === "RESOURCE_HANDOFF") {
-        // A just-returned session may still be in HANDOFF on D1. Refuse a
-        // backward state change without checking its canonical status.
+      // A superseded read has no authority to start a second network request.
+      // In particular, an old D1 empty-session reply must not trigger a new
+      // Supabase read after Start/End has already advanced the generation.
+      if (this.disposed || generation !== this.requestGeneration) {
+        return this.getState();
+      }
+      // During PDF/video handoff the D1 replica may momentarily report no
+      // session, a different session, or the state before handoff/return.
+      // Never replace a live canonical route with such a replica answer:
+      // validate it against Supabase first. Genuine session changes remain
+      // effective once confirmed; no terminal session is resurrected.
+      const activeBeforeRead = this.currentState.sessionAuthority === "CANONICAL"
+        ? this.currentState.session
+        : null;
+      const replicaConflictsWithLiveSession = !canonical && activeBeforeRead !== null &&
+        !TERMINAL_STATES.has(activeBeforeRead.status) && (
+          result.session?.id !== activeBeforeRead.id ||
+          (result.session.status !== activeBeforeRead.status &&
+            (activeBeforeRead.status === "ACTIVE" ||
+             activeBeforeRead.status === "RESOURCE_HANDOFF"))
+        );
+      const replicaReplaysReturnedHandoff = !canonical &&
+        result.session?.id === this.returnedHandoffSessionId &&
+        result.session.status === "RESOURCE_HANDOFF";
+      if (replicaConflictsWithLiveSession || replicaReplaysReturnedHandoff) {
         result = await this.api.getCurrentFocusSession({ canonical: true });
       }
       if (this.disposed || generation !== this.requestGeneration) {
@@ -724,6 +745,9 @@ export class FocusRuntimeController {
 
   private async handleForeground(): Promise<void> {
     if (this.disposed) return;
+    // Paint the elapsed time immediately; a slow server read must never make
+    // the first foreground frame look like a paused countdown.
+    this.refreshDisplay();
     this.clearReconcileRetry();
     const awaySeconds = this.backgroundAt === null
       ? 0

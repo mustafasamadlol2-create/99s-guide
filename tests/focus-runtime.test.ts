@@ -850,6 +850,7 @@ test("a start mutation wins over an older empty-current response", async () => {
   await controller.start({ planId: PLAN_ID, planItemId: PLAN_ITEM_ID });
   resolveOldEmpty(currentResult(null, "2026-09-25T12:01:00.000Z"));
   await oldReconcile;
+  assert.equal(getCalls, 2, "a superseded D1 reply must not start a canonical fallback fetch");
 
   assert.equal(controller.getState().session?.id, SESSION_ID);
   assert.equal(controller.getState().sessionAuthority, "CANONICAL");
