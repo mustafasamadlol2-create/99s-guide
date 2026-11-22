@@ -1,0 +1,25 @@
+--- a/src/features/focus/runtime/controller.ts
++++ b/src/features/focus/runtime/controller.ts
+@@ -580,6 +580,12 @@
+   private async fetchCanonicalCurrent(generation: number, canonical: boolean): Promise<FocusRuntimeState> {
+     try {
+       let result = await this.api.getCurrentFocusSession({ canonical });
++      // A superseded read has no authority to start a second network request.
++      // In particular, an old D1 empty-session reply must not trigger a new
++      // Supabase read after Start/End has already advanced the generation.
++      if (this.disposed || generation !== this.requestGeneration) {
++        return this.getState();
++      }
+       // During PDF/video handoff the D1 replica may momentarily report no
+       // session, a different session, or the state before handoff/return.
+       // Never replace a live canonical route with such a replica answer:
+--- a/tests/focus-runtime.test.ts
++++ b/tests/focus-runtime.test.ts
+@@ -850,6 +850,7 @@
+   await controller.start({ planId: PLAN_ID, planItemId: PLAN_ITEM_ID });
+   resolveOldEmpty(currentResult(null, "2026-09-25T12:01:00.000Z"));
+   await oldReconcile;
++  assert.equal(getCalls, 2, "a superseded D1 reply must not start a canonical fallback fetch");
+ 
+   assert.equal(controller.getState().session?.id, SESSION_ID);
+   assert.equal(controller.getState().sessionAuthority, "CANONICAL");

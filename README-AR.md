@@ -1,30 +1,55 @@
-# تشخيص اتصال GitHub Actions مع Supabase — Phase 6
+# إصلاح Focus Runtime Race V3 — تعطّل الاختبار 24
 
-## لماذا فشل التشغيل رقم 2؟
-سجل GitHub يؤكد نجاح تثبيت الحزم و`prisma generate`، لكنه فشل عند أول استعلام `load_active_accounts` مع `PrismaClientInitializationError reason=unknown`؛ لا يكفي لتحديد خطأ كلمة المرور مقابل رفض الشبكة.
+## لماذا يتوقف `focus-runtime.test.ts` بعد 23 اختباراً؟
 
-## ما تضيفه الحزمة
-- `scripts/phase6-github-supabase-preflight.cjs`: فحص **قراءة فقط**، يتحقق من بنية `SUPABASE_DATABASE_URL` ثم DNS ثم اتصال TCP ثم اتصال Prisma وقراءة حساب واحد. لا يطبع عنوان الاتصال الكامل أو اسم المستخدم أو كلمة المرور أو عنوان الشبكة أو SQL أو رسالة قاعدة البيانات الخام.
-- `.github/workflows/phase6-weekly-challenges.yml`: إضافة خطوة فحص قبل Run bounded weekly reconciliation، مع الحفاظ على الجدولة والأسرار و`apply=false` الافتراضي و`CUTOVER=false`.
+بعد إصلاح V2، إذا كان هناك طلب قديم قيد التنفيذ لقراءة D1، ثم بدأت جلسة جديدة، فالرد القديم قد يكون `session=null`. الكود السابق كان يبدأ قراءة Supabase احتياطية لهذا الرد **قبل** التأكد أن الطلب القديم لم يعد ذا صلاحية (`requestGeneration`). هذا يسبب طلب شبكة غير ضروري وقد ينتظر الاختبار طويلاً لأن المحاكاة لا تعيد رداً على الطلب الإضافي.
 
-## التطبيق
-1. انسخ الملفين إلى نفس المسارات داخل جذر مشروع `99s-guide-1`، مع Git checkpoint. لا ترفع `.env` إلى GitHub.
-2. من CMD:
+## ما الذي غيّرته الحزمة؟
+
+- ملف `src/features/focus/runtime/controller.ts`: ألغِ نتيجة قراءة D1 القديمة بمجرد عودتها إذا تم تجاوز رقم طلبها، قبل أي قراءة Supabase إضافية.
+- ملف `tests/focus-runtime.test.ts`: تأكد أن رد D1 القديم لا يسبب جلباً إضافياً؛ يحمي من رجوع المشكلة في التعديلات القادمة.
+
+لا تغير الحزمة العداد نفسه، ولا حالة Focus الحالية على السيرفر، ولا قواعد البيانات أو نقاط الطلاب، ولا إعدادات Phase 6. **التحقق من الاختفاء الفعلي للرسالة وتأخير العداد يحتاج اختبار التطبيق بعد النشر.**
+
+## خطوات Windows CMD — داخل جذر مشروع 99s-guide-1
+
+فك ZIP بأكمله في الجذر، ثم احفظ التغييرات الحالية بوسيلة Git checkpoint قبل التعديل.
+
+```bat
+node scripts\apply-focus-runtime-race-v3.cjs
 ```
-git add .github/workflows/phase6-weekly-challenges.yml scripts/phase6-github-supabase-preflight.cjs
-git commit -m "Diagnose Phase6 GitHub Supabase connectivity safely"
+
+يجب أن ترى `CHECK_PASS files=2 ready=2 already=0`. إذا ظهر `BASELINE_CHANGED` أوقف العملية ولا تستبدل الملف يدوياً.
+
+```bat
+node scripts\apply-focus-runtime-race-v3.cjs --apply
+npm run typecheck
+npm run build
+npx tsx --test tests/focus-runtime.test.ts
+```
+
+يجب أن يكتمل الاختبار بملخص `tests 34 / pass 34 / fail 0` ويعود CMD. ثم شغّل اختبارات Focus الثلاثة الأخرى منفردة (نجحت عندك سابقاً):
+
+```bat
+npx tsx --test tests/focus-foreground-continuity.test.ts
+npx tsx --test tests/focus-solo-background-resume.test.ts
+npx tsx --test tests/focus-solo-continuity.test.ts
+```
+
+بعد النجاح:
+
+```bat
+git add src/features/focus/runtime/controller.ts tests/focus-runtime.test.ts
+git commit -m "Avoid stale Focus reads during resource return"
 git push origin main
 ```
-3. GitHub → Actions → Phase 6 Weekly Challenges → Run workflow → `apply=false`.
-4. افتح Step `Diagnose Supabase access safely (READ_ONLY)`، وأرسل **الكود فقط** من أحد النتائج:
-   - `DB_URL_MALFORMED` / `DB_URL_MISSING_COMPONENT` → أصلح القيمة المخزنة في GitHub Secret (لا ترسلها هنا).
-   - `DB_DNS_FAILED` / `DB_TCP_UNREACHABLE` → استخدم Session Pooler IPv4-compatible من Supabase (غالباً 5432)، أو تحقق من Network Restrictions. لا تغيّر المنفذ عشوائياً.
-   - `DB_AUTH_FAILED` → تحقق من مستخدم الـPooler وكلمة مرور قاعدة البيانات وقيمة الـSecret، مع مراعاة ترميز الرموز الخاصة في كلمة المرور داخل URL.
-   - `DB_ACCESS_DENIED` → الحساب لا يمتلك صلاحية قراءة الجداول.
-   - `PRISMA_CONNECT_AND_USER_READ PASS` → الاتصال صحيح؛ راجع عندها اختلاف ما يراه سكربت Phase 6 في بيئة GitHub.
 
-## أمان التشغيل
-- لا تفعّل `PHASE6_AUTO_APPLY`، ولا تختَر `apply=true` قبل نجاح القراءة والتحقق من تجديد الأسبوع في بيئة آمنة.
-- اترك `PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER_ENABLED=false`.
-- هذا اختبار GitHub للاتصال وليس إصلاحاً مؤكداً لقيمة Secret؛ يستحيل معرفة صحتها من الصورة لأن GitHub يخفيها.
-- تشغيل أول فحص حي بعد `prisma generate` يحتاج أن تكون متغيرات الاتصال وسلسلة PostgreSQL مستخدمة فعلاً وصحيحة.
+انشر Frontend على Cloudflare Pages، ثم أعد تحميل تحديث التطبيق (خصوصاً إذا ظهرت عبارة App update available). ابدأ Focus، افتح PDF/YouTube، اخرج إلى الخلفية نحو دقيقة، ثم ارجع وتحقق من استمرار حساب المدة ومن عدم ظهور رسالة الجلسة القديمة.
+
+### التراجع
+
+```bat
+node scripts\apply-focus-runtime-race-v3.cjs --rollback
+```
+
+**مهم:** أداة التراجع لا تغيّر أي ملف إذا عدّلته بعد تطبيق V3؛ تطلب مراجعة يدوية لحماية التغييرات الجديدة. التراجع عن V3 لا يلغي V2.

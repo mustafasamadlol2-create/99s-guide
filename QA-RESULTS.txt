@@ -1,0 +1,7 @@
+TESTING / 2026-11-19
+Baseline: Focus Foreground V2 applied. V2 controller sha256 06c475b1366827df40e259d779ba1215f99cd25fc8cc8a87e5ecd8973b0ad360.
+Observed: 23 runtime tests pass, test 24 `a start mutation wins over an older empty-current response` remains pending because an old D1 read starts unnecessary canonical fallback before generation check.
+Fix: generation/disposed guard immediately after first async read; assert getCalls===2 in test 24.
+After fix: focus-runtime.test.ts: 34/34 PASS, additional foreground (8) and solo-background (3): 45/45 PASS in local TypeScript transpile require harness.
+User independently reported solo-continuity.test.ts 10/10 PASS before V3; not re-run locally due to test absent from available snapshot.
+Build and typecheck: user V2 build/typecheck PASS. V3 must be typechecked and built on user's current project.
