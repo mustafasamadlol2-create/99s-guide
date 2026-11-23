@@ -25,7 +25,7 @@ import {
 } from "./queries.js";
 import {
   getLatestLeaderboardSnapshot,
-  rebuildLeaderboardSnapshot,
+  getReadableLeaderboardSnapshot,
   isLeaderboardSnapshotScoringCurrent,
   LEADERBOARD_LIVE_FRESHNESS_MS,
   LEADERBOARD_LIVE_CURSOR_RETENTION_MS,
@@ -43,24 +43,28 @@ const CACHE_RANK_PATH = "/internal/leaderboard-cache/rank";
 
 const liveSnapshotRebuilds = new Map<string, Promise<void>>();
 
+// Share reconciliation across overlapping page/rank reads, but never force a
+// new revision on every visit. The canonical read helper checks snapshot age,
+// the active user roster, scoring semantics, and new Points V2 ledger entries.
 async function ensureCurrentLiveSnapshot(input: {
-  seasonId: string;
+  season: LeaderboardSeason;
   now: Date;
   database: PrismaClient;
 }): Promise<void> {
-  const existing = liveSnapshotRebuilds.get(input.seasonId);
+  const seasonId = input.season.id;
+  const existing = liveSnapshotRebuilds.get(seasonId);
   if (existing) return existing;
-  const task = rebuildLeaderboardSnapshot({
-    seasonId: input.seasonId,
+  const task = getReadableLeaderboardSnapshot({
+    season: input.season,
     now: input.now,
-    forceRevision: true,
-  }, input.database).then(() => undefined);
-  liveSnapshotRebuilds.set(input.seasonId, task);
+    database: input.database,
+  }).then(() => undefined);
+  liveSnapshotRebuilds.set(seasonId, task);
   try {
     await task;
   } finally {
-    if (liveSnapshotRebuilds.get(input.seasonId) === task) {
-      liveSnapshotRebuilds.delete(input.seasonId);
+    if (liveSnapshotRebuilds.get(seasonId) === task) {
+      liveSnapshotRebuilds.delete(seasonId);
     }
   }
 }
@@ -401,12 +405,9 @@ export async function getLeaderboardPageWithCache(input: {
   entries: PublicLeaderboardEntry[];
   nextCursor: string | null;
 }> {
-  // Current first-page reads must be based on a snapshot generated AFTER the
-  // latest canonical ledger commits. The prior read path could legitimately
-  // reuse an older LIVE snapshot (or a lock-busy snapshot) whose rows were all
-  // zero even while the Points V2 ledger already contained rewards. Rebuild the
-  // tiny cohort snapshot synchronously before serving the first page; cursor
-  // pages remain frozen to that snapshot for stable pagination.
+  // A first-page read checks the latest canonical ledger and roster before
+  // displaying cached ranking data. It never forces a revision for an unchanged
+  // source; cursor pages remain pinned to their original snapshot.
   if (!input.cursor) {
     const database = input.database ?? getPrisma() as PrismaClient;
     const now = input.now ? new Date(input.now) : new Date();
@@ -417,9 +418,14 @@ export async function getLeaderboardPageWithCache(input: {
       database,
     });
     if (season.status !== "CLOSED") {
-      await ensureCurrentLiveSnapshot({ seasonId: season.id, now, database });
+      await ensureCurrentLiveSnapshot({ season, now, database });
     }
-    return getLeaderboardPage({ ...input, now, database });
+    // With reads disabled, preserve the canonical-first behavior. Once the
+    // flag is enabled, the same fresh canonical snapshot is validated against
+    // D1 below; any missing/lagging replica falls back to PostgreSQL.
+    if (!cacheIsEnabled()) {
+      return getLeaderboardPage({ ...input, now, database });
+    }
   }
   if (!cacheIsEnabled()) return getLeaderboardPage(input);
   const database = input.database ?? getPrisma() as PrismaClient;
@@ -599,10 +605,8 @@ export async function getMyLeaderboardRankWithCache(input: {
   notRanked: boolean;
   snapshotGeneratedAt: string;
 }> {
-  // Keep rank/tie and the visible list on the same freshly rebuilt canonical
-  // snapshot. Previously own score could be live while rank/list still came
-  // from an older zero-score snapshot, which produced the visibly inconsistent
-  // Weekly view reported by students.
+  // Own rank and first-page reads reconcile against the same canonical
+  // freshness rules; neither endpoint forces an unnecessary snapshot revision.
   const database = input.database ?? getPrisma() as PrismaClient;
   const now = input.now ? new Date(input.now) : new Date();
   const season = await resolveSeason({
@@ -612,7 +616,7 @@ export async function getMyLeaderboardRankWithCache(input: {
     database,
   });
   if (season.status !== "CLOSED") {
-    await ensureCurrentLiveSnapshot({ seasonId: season.id, now, database });
+    await ensureCurrentLiveSnapshot({ season, now, database });
   }
   return getMyLeaderboardRank({ ...input, now, database });
 }
