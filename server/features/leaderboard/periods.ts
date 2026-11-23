@@ -1,5 +1,5 @@
 import {
-  LEADERBOARD_SCOPES,
+  PUBLIC_LEADERBOARD_SCOPES,
   type LeaderboardScope,
 } from "./types.js";
 import { LeaderboardError } from "./errors.js";
@@ -314,6 +314,6 @@ export function getAvailableLeaderboardScopes(
       throw error;
     }
   }
-  return LEADERBOARD_SCOPES.filter((scope) =>
+  return PUBLIC_LEADERBOARD_SCOPES.filter((scope) =>
     scope !== "SEMESTER" || semesterAvailable);
 }

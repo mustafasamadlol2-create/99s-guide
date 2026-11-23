@@ -33,7 +33,6 @@ export interface LeaderboardViewProps {
 }
 
 const SCOPE_COPY: Record<LeaderboardScope, [string, string, string]> = {
-  WEEKLY: ["gamificationWeekly", "Weekly", "أسبوعي"],
   MONTHLY: ["gamificationMonthly", "Monthly", "شهري"],
   SEMESTER: ["gamificationSemester", "Semester", "فصلي"],
   ALL_TIME: ["gamificationAllTime", "All time", "طوال الوقت"],

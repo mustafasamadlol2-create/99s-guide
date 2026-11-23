@@ -1,5 +1,7 @@
 export type GamificationTab = "overview" | "achievements" | "challenges" | "leaderboard";
-export type LeaderboardScope = "WEEKLY" | "MONTHLY" | "SEMESTER" | "ALL_TIME";
+// Student-facing leaderboard has Monthly, Semester and All Time only.
+// Weekly Challenges are an independent feature, not a leaderboard scope.
+export type LeaderboardScope = "MONTHLY" | "SEMESTER" | "ALL_TIME";
 
 export interface PointsBalance {
   totalPoints: number;

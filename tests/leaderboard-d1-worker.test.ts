@@ -3,8 +3,9 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { createServer, type AddressInfo } from "node:net";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
@@ -20,7 +21,7 @@ const SECRET = "prompt27-local-d1-test-secret";
 const SCOPE = "WEEKLY";
 const SEASON_KEY = "weekly:2026-W39";
 const SEASON_ID = "prompt27-local-season";
-const RANKING_VERSION = "leaderboard-ranking-v1";
+const RANKING_VERSION = LEADERBOARD_CACHE_RANKING_VERSION;
 
 type Entry = {
   userId: string;
@@ -198,7 +199,7 @@ async function startLocalWorker(): Promise<{
   process: ChildProcess;
   persistencePath: string;
 }> {
-  const persistencePath = await mkdtemp("/tmp/prompt27-local-d1-");
+  const persistencePath = await mkdtemp(join(tmpdir(), "prompt27-local-d1-"));
   const wranglerBin = resolve(ROOT, "node_modules/wrangler/bin/wrangler.js");
   const migrate = spawnSync(process.execPath, [
     wranglerBin, "d1", "migrations", "apply", "99s-guide-content",
@@ -220,7 +221,7 @@ async function startLocalWorker(): Promise<{
   ], {
     cwd: ROOT,
     stdio: ["ignore", "pipe", "pipe"],
-    detached: true,
+    detached: process.platform !== "win32",
   });
   let logs = "";
   child.stdout?.on("data", (chunk: Buffer) => { logs += chunk.toString(); });
@@ -245,7 +246,8 @@ test("leaderboard cache Worker publishes and serves canonical snapshots locally"
   t.after(async () => {
     if (worker.process.pid && worker.process.exitCode === null) {
       try {
-        process.kill(-worker.process.pid, "SIGTERM");
+        if (process.platform === "win32") worker.process.kill("SIGTERM");
+        else process.kill(-worker.process.pid, "SIGTERM");
       } catch {}
       await Promise.race([
         once(worker.process, "exit"),
@@ -365,6 +367,31 @@ test("leaderboard cache Worker publishes and serves canonical snapshots locally"
     assert.equal(metadata.actualChunkCount, 1);
     assert.deepEqual(metadata.chunkIndexes, [0]);
     assert.equal(metadata.actualProjectionChecksum, initial.projectionChecksum);
+  });
+
+  await t.test("publishes zero-point students without changing ranks", async () => {
+    const entries: Entry[] = [
+      { userId: "zero-leader", rank: 1, tieSize: 1, score: 5, levelSnapshot: null },
+      { userId: "zero-a", rank: 2, tieSize: 2, score: 0, levelSnapshot: null },
+      { userId: "zero-b", rank: 2, tieSize: 2, score: 0, levelSnapshot: null },
+    ];
+    const manifest = makeManifest({
+      snapshotId: "prompt27-zero-scores",
+      revision: 3,
+      generatedAt: new Date(now + 100_000).toISOString(),
+      entries,
+    });
+    await publish(baseUrl, manifest, entries);
+    const page = await signedRequest(
+      baseUrl,
+      `/internal/leaderboard-cache/page?${new URLSearchParams({ snapshotId: manifest.snapshotId, limit: "10" })}`,
+      "GET",
+    );
+    assert.equal(page.status, 200);
+    const payload = await page.json() as { entries: Entry[] };
+    assert.deepEqual(payload.entries.map((row) => [row.userId, row.rank, row.score]), [
+      ["zero-leader", 1, 5], ["zero-a", 2, 0], ["zero-b", 2, 0],
+    ]);
   });
 
   await t.test("accepts out-of-order chunks but commits only complete projections", async () => {
@@ -741,7 +768,7 @@ test("server cache manifests match canonical snapshot metadata", () => {
     () => buildLeaderboardCacheManifest(
       season,
       snapshot,
-      entries.map((entry, index) => index === 0 ? { ...entry, score: 0n } : entry),
+      entries.map((entry, index) => index === 0 ? { ...entry, score: -1n } : entry),
     ),
     /Invalid score/u,
   );

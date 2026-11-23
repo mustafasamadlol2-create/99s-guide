@@ -16,6 +16,7 @@ import {
   rebuildLeaderboardSnapshot,
 } from "../features/leaderboard/snapshots.js";
 import { parseLeaderboardScope } from "../features/leaderboard/seasons.js";
+import { isPublicLeaderboardScope } from "../features/leaderboard/types.js";
 import { reconcileLeaderboardSnapshot } from "../features/leaderboard/reconciliation.js";
 import {
   reconcileLeaderboardD1Cache,
@@ -112,7 +113,7 @@ export function createLeaderboardRouter(dependencies: {
 
   router.get("/leaderboards/:scope", dependencies.requireUser, async (req, res) => {
     const scope = parseLeaderboardScope(req.params.scope);
-    if (!scope) {
+    if (!isPublicLeaderboardScope(scope)) {
       return res.status(400).json({
         error: "Leaderboard scope is invalid.",
         code: "LEADERBOARD_INVALID_SCOPE",
@@ -150,7 +151,7 @@ export function createLeaderboardRouter(dependencies: {
 
   router.get("/me/leaderboard-rank", dependencies.requireUser, async (req, res) => {
     const scope = parseLeaderboardScope(req.query.scope);
-    if (!scope) {
+    if (!isPublicLeaderboardScope(scope)) {
       return res.status(400).json({
         error: "Leaderboard scope is invalid.",
         code: "LEADERBOARD_INVALID_SCOPE",

@@ -5,12 +5,12 @@ type Manifest = {
   snapshotType: "LIVE" | "FINAL"; revision: number; seasonStatus: string;
   startsAt: string | null; endsAt: string | null; generatedAt: string;
   scoreThrough: string; entryCount: number; sourceFingerprint: string;
-  projectionChecksum: string; chunkCount: number; rankingVersion: "leaderboard-ranking-v1";
+  projectionChecksum: string; chunkCount: number; rankingVersion: "leaderboard-ranking-v2";
   cacheSchemaVersion: 1;
 };
 type Entry = { userId: string; rank: number; tieSize: number; score: number; levelSnapshot: number | null };
 const MAX_BODY = 512 * 1024, MAX_CHUNK = 100, MAX_ENTRIES = 20_000;
-const SCHEMA = 1, RANKING = "leaderboard-ranking-v1";
+const SCHEMA = 1, RANKING = "leaderboard-ranking-v2";
 
 const response = (body: unknown, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
@@ -116,7 +116,7 @@ function manifestDto(row: any): Record<string, unknown> {
 function parseEntry(v: unknown): Entry {
   if (!record(v)) throw new Error("Invalid entry.");
   return { userId: text(v.userId, "userId", 200), rank: integer(v.rank, "rank", 1, 2147483647),
-    tieSize: integer(v.tieSize, "tieSize", 1, 2147483647), score: integer(v.score, "score", 1, 9007199254740991),
+    tieSize: integer(v.tieSize, "tieSize", 1, 2147483647), score: integer(v.score, "score", 0, 9007199254740991),
     levelSnapshot: v.levelSnapshot === null || v.levelSnapshot === undefined ? null : integer(v.levelSnapshot, "levelSnapshot", 0, 2147483647) };
 }
 function manifestArgs(m: Manifest): unknown[] {

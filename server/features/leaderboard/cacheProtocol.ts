@@ -148,7 +148,7 @@ export function toCacheEntry(entry: Pick<LeaderboardSnapshotEntry, "userId" | "r
   const score = Number(entry.score);
   safeInteger(entry.rank, "rank", 1);
   safeInteger(entry.tieSize, "tieSize", 1);
-  safeInteger(score, "score", 1, Number.MAX_SAFE_INTEGER);
+  safeInteger(score, "score", 0, Number.MAX_SAFE_INTEGER);
   return {
     userId: entry.userId,
     rank: entry.rank,
@@ -256,6 +256,16 @@ export async function requestLeaderboardD1<T = unknown>(
           `Leaderboard D1 Worker authentication/configuration is blocked (${safeCode}).`,
           { failureClass: "AUTH_CONFIGURATION", failureCode: safeCode },
         );
+      }
+      // A COMMIT may race ahead of retrying CHUNK deliveries. The D1 Worker
+      // confirms the projection is incomplete; retry the COMMIT after those
+      // chunks arrive instead of poisoning an otherwise valid outbox row.
+      // Other 409 responses remain permanent deterministic conflicts.
+      if (response.status === 409 && responseCode === "CACHE_INCOMPLETE") {
+        throw new OutboxDeliveryError("Leaderboard D1 projection is awaiting chunks.", {
+          failureClass: "TRANSIENT",
+          failureCode: "CACHE_INCOMPLETE",
+        });
       }
       if (responseCode === "LEADERBOARD_CACHE_SCHEMA_INCOMPATIBLE") {
         throw new OutboxDeliveryError("Leaderboard D1 schema is incompatible with this projection.", {

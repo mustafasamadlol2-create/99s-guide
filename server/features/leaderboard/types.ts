@@ -6,6 +6,21 @@ export const LEADERBOARD_SCOPES = [
 ] as const;
 
 export type LeaderboardScope = typeof LEADERBOARD_SCOPES[number];
+
+// Public product contract: Weekly Leaderboard was retired. Keep WEEKLY in
+// LEADERBOARD_SCOPES for previously stored seasons and internal reconciliation.
+// Weekly Challenges are a separate feature and remain enabled.
+export const PUBLIC_LEADERBOARD_SCOPES = [
+  "MONTHLY",
+  "SEMESTER",
+  "ALL_TIME",
+] as const satisfies readonly LeaderboardScope[];
+
+export function isPublicLeaderboardScope(
+  scope: LeaderboardScope | null,
+): scope is (typeof PUBLIC_LEADERBOARD_SCOPES)[number] {
+  return scope !== null && (PUBLIC_LEADERBOARD_SCOPES as readonly string[]).includes(scope);
+}
 export type LeaderboardSnapshotType = "LIVE" | "FINAL";
 export type LeaderboardSeasonStatus = "UPCOMING" | "ACTIVE" | "CLOSED";
 export type StudyPointsCompatibilityMode =

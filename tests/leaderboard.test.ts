@@ -177,9 +177,9 @@ test("semester availability hides the scope when no configured term is active", 
     new Date("2026-10-09T12:00:00.000Z"),
     [],
   );
-  assert.deepEqual(active, ["WEEKLY", "MONTHLY", "SEMESTER", "ALL_TIME"]);
-  assert.deepEqual(outsideConfiguredTerms, ["WEEKLY", "MONTHLY", "ALL_TIME"]);
-  assert.deepEqual(noConfiguration, ["WEEKLY", "MONTHLY", "ALL_TIME"]);
+  assert.deepEqual(active, ["MONTHLY", "SEMESTER", "ALL_TIME"]);
+  assert.deepEqual(outsideConfiguredTerms, ["MONTHLY", "ALL_TIME"]);
+  assert.deepEqual(noConfiguration, ["MONTHLY", "ALL_TIME"]);
 });
 
 test("a past closed semester resolves by its canonical stored key", async () => {
@@ -279,8 +279,10 @@ test("bounded score query uses one set-based canonical-ledger ranking query", as
   const scoreQuery = sqlStatements.find((sql) => sql.includes("WITH period_points")) ?? "";
   assert.match(scoreQuery, /"effectiveAt" >=/u);
   assert.match(scoreQuery, /"effectiveAt" </u);
-  assert.match(scoreQuery, /"PointsLog"/u);
-  assert.match(scoreQuery, /'legacy\.points_log'/u);
+  assert.match(scoreQuery, /"StudyPointsLedgerEntry"/u);
+  assert.match(scoreQuery, /"sourceType" <> 'LEGACY_POINTS_LOG'/u);
+  assert.match(scoreQuery, /"category" <> 'LEGACY'/u);
+  assert.doesNotMatch(scoreQuery, /FROM "PointsLog"/u);
   assert.match(scoreQuery, /RANK\(\) OVER/u);
   assert.match(scoreQuery, /COUNT\(\*\) OVER \(PARTITION BY eligible\.score\)/u);
    assert.match(scoreQuery, /GREATEST\(COALESCE\(scores\.score, 0\), 0\)/u);
@@ -293,13 +295,12 @@ test("bounded score query uses one set-based canonical-ledger ranking query", as
   assert.ok(end > start);
 });
 
-test("All-Time set query preserves the configured legacy-plus-ledger read mode", async () => {
+test("All-Time set query uses the V2 competitive ledger and excludes legacy totals", async () => {
   const sqlStatements: string[] = [];
   const tx = {
     async $queryRaw(query: unknown) {
       const sql = querySource(query);
       sqlStatements.push(sql);
-      if (sql.includes("legacy.baseline_import")) return [{ ready: true }];
       return [{
         userId: "user-1",
         score: "140",
@@ -312,28 +313,32 @@ test("All-Time set query preserves the configured legacy-plus-ledger read mode",
   const result = await readRankedLeaderboardScores({
     scope: "ALL_TIME",
     season: { scope: "ALL_TIME", seasonKey: "all-time", startsAt: null, endsAt: null },
-    scoreThrough: new Date("2026-09-25T12:00:00Z"),
+    scoreThrough: new Date("2026-11-20T12:00:00Z"),
     compatibilityMode: "LEGACY_PLUS_LEDGER",
   }, tx);
-  const combinedQuery = sqlStatements.find((sql) => sql.includes("FULL OUTER JOIN")) ?? "";
+  const combinedQuery = sqlStatements.find((sql) => sql.includes("WITH period_points")) ?? "";
   assert.match(combinedQuery, /"User"/u);
   assert.match(combinedQuery, /"StudyPointsLedgerEntry"/u);
-  assert.match(combinedQuery, /"totalPoints"/u);
+  assert.match(combinedQuery, /"effectiveAt" >=/u);
   assert.match(combinedQuery, /"createdAt" <=/u);
-  assert.doesNotMatch(combinedQuery, /"PointsLog"/u);
+  assert.match(combinedQuery, /"sourceType" <> 'LEGACY_POINTS_LOG'/u);
+  assert.match(combinedQuery, /"category" <> 'LEGACY'/u);
+  assert.doesNotMatch(combinedQuery, /FROM "PointsLog"/u);
+  assert.doesNotMatch(combinedQuery, /"totalPoints"/u);
+  assert.equal(sqlStatements.length, 1);
   assert.equal(result.rows[0]?.score, 140n);
-  assert.equal(result.compatibilityMode, "LEGACY_PLUS_LEDGER");
+  // The retired compatibility hint must not reintroduce legacy points.
+  assert.equal(result.compatibilityMode, "LEDGER_ONLY");
   assert.deepEqual(result.ruleVersions, ["focus-v1", "study-v2"]);
 });
 
-test("own All-Time score sums compatible sources as of the pinned snapshot time", async () => {
+test("own All-Time score excludes legacy balances and uses only competitive ledger", async () => {
   const queries: string[] = [];
   const tx = {
     async $queryRaw(query: unknown) {
       const sql = querySource(query);
       queries.push(sql);
-      if (sql.includes("legacy.baseline_import")) return [{ ready: true }];
-      return [{ legacy: "100", ledger: "40" }];
+      return [{ score: "40" }];
     },
   } as unknown as Prisma.TransactionClient;
   const database = {
@@ -345,12 +350,15 @@ test("own All-Time score sums compatible sources as of the pinned snapshot time"
     userId: "user-1",
     scope: "ALL_TIME",
     season: { scope: "ALL_TIME", seasonKey: "all-time", startsAt: null, endsAt: null },
-    scoreThrough: new Date("2026-09-25T12:00:00Z"),
+    scoreThrough: new Date("2026-11-20T12:00:00Z"),
     compatibilityMode: "LEGACY_PLUS_LEDGER",
   }, database);
-  assert.equal(score.score, 140);
-  assert.equal(score.compatibilityMode, "LEGACY_PLUS_LEDGER");
-  assert.equal(queries.filter((sql) => sql.includes("AS legacy")).length, 1);
+  assert.equal(score.score, 40);
+  assert.equal(score.compatibilityMode, "LEDGER_ONLY");
+  assert.equal(queries.length, 1);
+  assert.match(queries[0]!, /"StudyPointsLedgerEntry"/u);
+  assert.match(queries[0]!, /"sourceType" <> 'LEGACY_POINTS_LOG'/u);
+  assert.doesNotMatch(queries[0]!, /"totalPoints"/u);
 });
 
 test("fingerprints ignore input row order but change when canonical score inputs change", () => {
@@ -518,15 +526,29 @@ test("leaderboard user routes require authentication and validate limits before 
     const availabilityBody = await availability.json() as { scopes: string[] };
     assert.deepEqual(
       availabilityBody.scopes.filter((scope) => scope !== "SEMESTER"),
-      ["WEEKLY", "MONTHLY", "ALL_TIME"],
+      ["MONTHLY", "ALL_TIME"],
     );
     assert.ok(
-      availabilityBody.scopes.length === 3
-      || availabilityBody.scopes.length === 4,
+      availabilityBody.scopes.length === 2
+      || availabilityBody.scopes.length === 3,
     );
     assert.equal(databaseCalls, 0);
+    // Legacy WEEKLY seasons are retained for historical reconciliation, but
+    // students must not be able to request the retired leaderboard directly.
+    const retired = await fetch(
+      `${server.baseUrl}/api/leaderboards/WEEKLY?limit=2`,
+      { headers: { "x-test-user": "user-1" } },
+    );
+    assert.equal(retired.status, 400);
+    assert.equal((await retired.json() as { code: string }).code, "LEADERBOARD_INVALID_SCOPE");
+    const retiredRank = await fetch(
+      `${server.baseUrl}/api/me/leaderboard-rank?scope=WEEKLY`,
+      { headers: { "x-test-user": "user-1" } },
+    );
+    assert.equal(retiredRank.status, 400);
+    assert.equal((await retiredRank.json() as { code: string }).code, "LEADERBOARD_INVALID_SCOPE");
     const invalid = await fetch(
-      `${server.baseUrl}/api/leaderboards/WEEKLY?limit=201`,
+      `${server.baseUrl}/api/leaderboards/MONTHLY?limit=201`,
       { headers: { "x-test-user": "user-1" } },
     );
     assert.equal(invalid.status, 400);
@@ -595,7 +617,7 @@ test("admin leaderboard routes deny students and hosts and reject user-supplied 
   }
 });
 
-test("D1 read failure falls back to PostgreSQL with semester ties and a next page", async () => {
+test("D1 cursor-page failure falls back to PostgreSQL with semester ties and a next page", async () => {
   const now = new Date("2026-10-09T12:00:00.000Z");
   const season = {
     id: "fall-2026-season",
@@ -623,21 +645,29 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
     { userId: "user-c", rank: 2, tieSize: 2, score: 80n, levelSnapshot: 6, user: { name: "Student C" } },
     { userId: "user-d", rank: 4, tieSize: 1, score: 60n, levelSnapshot: 5, user: { name: "Student D" } },
   ];
+  const cursor = {
+    version: 1 as const,
+    snapshotId: snapshot.id,
+    seasonId: season.id,
+    rank: 1,
+    score: "100",
+    userId: "user-a",
+    expiresAt: now.getTime() + 15 * 60_000,
+  };
   const database = {
-    async $transaction(run: (tx: unknown) => Promise<unknown>) {
-      return run({
-        async $executeRaw() { return 1; },
-        leaderboardSeason: {
-          async findUniqueOrThrow() { return season; },
-        },
-      });
+    leaderboardSeason: {
+      async findUnique() { return season; },
     },
     leaderboardSnapshot: {
-      async findFirst() { return snapshot; },
+      async findUnique() { return snapshot; },
     },
     leaderboardSnapshotEntry: {
-      async findMany(input: { take: number }) {
-        return rows.slice(0, input.take);
+      async findFirst() { return { rank: 1, score: 100n }; },
+      async findMany(input: { take: number; where: unknown }) {
+        // PostgreSQL cursor paging starts AFTER user-a; provide one extra
+        // entry so the fallback must generate another cursor.
+        assert.ok(input.where && typeof input.where === "object" && "AND" in input.where);
+        return rows.slice(1, 1 + input.take);
       },
       async count() { return rows.length; },
     },
@@ -653,32 +683,38 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
   process.env.LEADERBOARD_D1_READ_ENABLED = "true";
   process.env.LEADERBOARD_D1_WORKER_URL = "https://leaderboard-cache.invalid";
   process.env.LEADERBOARD_D1_SYNC_SECRET = "leaderboard-test-secret";
-  globalThis.fetch = async () => new Response(
-    JSON.stringify({ error: "test cache unavailable" }),
-    { status: 503, headers: { "content-type": "application/json" } },
-  );
+  let cacheFetches = 0;
+  globalThis.fetch = async () => {
+    cacheFetches += 1;
+    return new Response(
+      JSON.stringify({ error: "test cache unavailable" }),
+      { status: 503, headers: { "content-type": "application/json" } },
+    );
+  };
   try {
     const result = await getLeaderboardPageWithCache({
       viewerId: "viewer-1",
       scope: "SEMESTER",
       limit: 2,
+      cursor,
       now,
       database,
     });
     assert.equal(result.season.seasonKey, "semester:fall-2026");
     assert.deepEqual(
       result.entries.map(({ rank, tieSize, score }) => [rank, tieSize, score]),
-      [[1, 1, 100], [2, 2, 80]],
+      [[2, 2, 80], [2, 2, 80]],
     );
     assert.deepEqual(
       Object.keys(result.entries[0]!).sort(),
-      ["avatarUrl", "displayName", "level", "rank", "score", "tieSize"],
+      ["avatarUrl", "displayName", "isViewer", "level", "rank", "score", "tieSize"],
     );
-    assert.equal(result.entries[0]?.displayName, "Student A");
+    assert.equal(result.entries[0]?.displayName, "Student B");
     assert.equal(result.entries[0]?.avatarUrl, null);
-    assert.equal(JSON.stringify(result).includes("user-a"), false);
+    assert.equal(JSON.stringify(result).includes("user-b"), false);
     assert.equal(result.totalRankedUsers, 4);
     assert.ok(result.nextCursor);
+    assert.equal(cacheFetches, 1, "D1 must be attempted before PostgreSQL fallback");
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.LEADERBOARD_D1_READ_ENABLED;
