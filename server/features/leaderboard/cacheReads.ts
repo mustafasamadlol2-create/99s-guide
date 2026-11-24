@@ -1,11 +1,13 @@
 import { recordOperationalOutcome } from "../../observability/metrics.js";
 
-import type { LeaderboardSeason, LeaderboardSnapshot, PrismaClient } from "@prisma/client";
+import { Prisma, type LeaderboardSeason, type PrismaClient } from "@prisma/client";
 import { logger } from "../../services/logger.js";
+import { classifyOutboxDeliveryFailure, OutboxDeliveryError } from "../../services/outboxDeliveryPolicy.js";
 import { getPrisma } from "../../services/prismaClient.js";
 import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
 import { encodeLeaderboardCursor } from "./cursor.js";
 import { LeaderboardError } from "./errors.js";
+import { ensureLeaderboardSeason } from "./seasons.js";
 import {
   LEADERBOARD_CACHE_RANKING_VERSION,
   LEADERBOARD_CACHE_SCHEMA_VERSION,
@@ -25,12 +27,13 @@ import {
   validateCursorSnapshot,
 } from "./queries.js";
 import {
-  getLatestLeaderboardSnapshot,
+  getLatestLeaderboardReadSnapshot,
   getReadableLeaderboardSnapshot,
   isLeaderboardSnapshotScoringCurrent,
   LEADERBOARD_LIVE_FRESHNESS_MS,
   LEADERBOARD_LIVE_CURSOR_RETENTION_MS,
   LEADERBOARD_LIVE_HARD_STALE_MS,
+  type LeaderboardReadSnapshot,
 } from "./snapshots.js";
 import type {
   LeaderboardCursorPayload,
@@ -112,7 +115,62 @@ type CacheRank = {
   entry: unknown;
 };
 
-class CacheRejected extends Error {}
+type FallbackReason =
+  | "PROJECTION_NOT_READY"
+  | "PROJECTION_POINTER_MISMATCH"
+  | "PROJECTION_METADATA_MISMATCH"
+  | "LIVE_STALE"
+  | "CANONICAL_CHANGED"
+  | "VISIBILITY_FILTER"
+  | "WORKER_CONFIGURATION"
+  | "WORKER_AUTH"
+  | "WORKER_TIMEOUT"
+  | "WORKER_TRANSPORT"
+  | "WORKER_HTTP"
+  | "WORKER_RESPONSE_INVALID"
+  | "CANONICAL_QUERY_FAILED"
+  | "UNKNOWN";
+
+class CacheRejected extends Error {
+  constructor(readonly reason: FallbackReason, message: string) {
+    super(message);
+  }
+}
+
+async function readWorker<T>(path: string): Promise<T> {
+  try {
+    return await requestLeaderboardD1<T>(path, undefined, { method: "GET" });
+  } catch (error) {
+    if (error instanceof LeaderboardError) throw error;
+    let reason: FallbackReason = "UNKNOWN";
+    if (error instanceof OutboxDeliveryError) {
+      if (error.failureCode === "CACHE_MISSING") reason = "PROJECTION_NOT_READY";
+      else if (error.failureCode === "CONFIG_MISSING_OR_INVALID") reason = "WORKER_CONFIGURATION";
+      else if (error.failureCode === "INVALID_WORKER_RESPONSE") reason = "WORKER_RESPONSE_INVALID";
+      else if (error.failureCode === "WORKER_ENDPOINT_UNAVAILABLE") reason = "WORKER_HTTP";
+      else if (error.failureClass === "AUTH_CONFIGURATION") reason = "WORKER_AUTH";
+      else if (error.failureClass !== "OPERATIONAL") reason = "WORKER_HTTP";
+    } else if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+      reason = "WORKER_TIMEOUT";
+    } else if (classifyOutboxDeliveryFailure(error, 1).failureCode === "NETWORK_OR_TIMEOUT") {
+      reason = "WORKER_TRANSPORT";
+    }
+    throw new CacheRejected(reason, "Leaderboard D1 request failed.");
+  }
+}
+
+function fallbackReason(error: unknown): FallbackReason {
+  if (error instanceof CacheRejected) return error.reason;
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError
+    || error instanceof Prisma.PrismaClientUnknownRequestError
+    || error instanceof Prisma.PrismaClientInitializationError
+    || error instanceof Prisma.PrismaClientRustPanicError
+  ) {
+    return "CANONICAL_QUERY_FAILED";
+  }
+  return "UNKNOWN";
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -131,14 +189,14 @@ function canonicalIso(value: unknown): value is string {
 }
 
 function parseManifest(value: unknown): CacheManifest {
-  if (!isRecord(value)) throw new CacheRejected("Cache manifest is missing.");
+  if (!isRecord(value)) throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache manifest is missing.");
   const requiredStrings = [
     "snapshotId", "seasonId", "scope", "seasonKey", "seasonStatus",
     "projectionChecksum", "rankingVersion", "state", "sourceFingerprint",
   ] as const;
   if (requiredStrings.some((key) =>
     typeof value[key] !== "string" || value[key].length === 0)) {
-    throw new CacheRejected("Cache manifest has invalid text fields.");
+    throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache manifest has invalid text fields.");
   }
   if (
     (value.snapshotType !== "LIVE" && value.snapshotType !== "FINAL")
@@ -161,7 +219,7 @@ function parseManifest(value: unknown): CacheManifest {
       || canonicalIso(value.endsAt)
     )
   ) {
-    throw new CacheRejected("Cache manifest contains invalid metadata.");
+    throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache manifest contains invalid metadata.");
   }
   return value as unknown as CacheManifest;
 }
@@ -169,7 +227,7 @@ function parseManifest(value: unknown): CacheManifest {
 function validateManifestForSnapshot(
   manifest: CacheManifest,
   season: LeaderboardSeason,
-  snapshot: LeaderboardSnapshot,
+  snapshot: LeaderboardReadSnapshot,
 ): void {
   if (
     manifest.state !== "READY"
@@ -196,7 +254,7 @@ function validateManifestForSnapshot(
     || manifest.sourceFingerprint !== snapshot.sourceFingerprint
     || (snapshot.snapshotType === "FINAL" && manifest.seasonStatus !== "CLOSED")
   ) {
-    throw new CacheRejected("Cache metadata does not match the canonical snapshot.");
+    throw new CacheRejected("PROJECTION_METADATA_MISMATCH", "Cache metadata does not match the canonical snapshot.");
   }
 }
 
@@ -207,19 +265,19 @@ function validateFreshness(
   if (manifest.snapshotType === "FINAL") return false;
   const age = now.getTime() - Date.parse(manifest.generatedAt);
   if (age < 0 || age > LEADERBOARD_LIVE_HARD_STALE_MS) {
-    throw new CacheRejected("Live cache is outside its hard freshness window.");
+    throw new CacheRejected("LIVE_STALE", "Live cache is outside its hard freshness window.");
   }
   return age > LEADERBOARD_LIVE_FRESHNESS_MS;
 }
 
 function validateSnapshotFreshness(
-  snapshot: LeaderboardSnapshot,
+  snapshot: LeaderboardReadSnapshot,
   now: Date,
 ): boolean {
   if (snapshot.snapshotType === "FINAL") return false;
   const age = now.getTime() - snapshot.generatedAt.getTime();
   if (age < 0 || age > LEADERBOARD_LIVE_HARD_STALE_MS) {
-    throw new CacheRejected("Live cache is outside its hard freshness window.");
+    throw new CacheRejected("LIVE_STALE", "Live cache is outside its hard freshness window.");
   }
   return age > LEADERBOARD_LIVE_FRESHNESS_MS;
 }
@@ -231,19 +289,20 @@ async function getCurrentManifest(
     scope: season.scope,
     seasonKey: season.seasonKey,
   });
-  const result = await requestLeaderboardD1<{ ok?: unknown; manifest?: unknown }>(
+  const result = await readWorker<{ ok?: unknown; manifest?: unknown }>(
     `${CACHE_CURRENT_PATH}?${params.toString()}`,
-    undefined,
-    { method: "GET" },
   );
   if (!isRecord(result) || result.ok !== true) {
-    throw new CacheRejected("Cache current-pointer response is invalid.");
+    throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache current-pointer response is invalid.");
+  }
+  if (result.manifest === null) {
+    throw new CacheRejected("PROJECTION_NOT_READY", "Cache current pointer is missing.");
   }
   return parseManifest(result.manifest);
 }
 
 async function getPage(
-  snapshot: LeaderboardSnapshot,
+  snapshot: LeaderboardReadSnapshot,
   limit: number,
   cursor?: LeaderboardCursorPayload,
 ): Promise<{ manifest: CacheManifest; entries: CacheEntry[]; nextCursor: {
@@ -258,17 +317,15 @@ async function getPage(
     params.set("afterScore", cursor.score);
     params.set("afterUserId", cursor.userId);
   }
-  const result = await requestLeaderboardD1<CachePage>(
+  const result = await readWorker<CachePage>(
     `${CACHE_PAGE_PATH}?${params.toString()}`,
-    undefined,
-    { method: "GET" },
   );
   if (!isRecord(result) || result.ok !== true || !Array.isArray(result.entries)) {
-    throw new CacheRejected("Cache page response is invalid.");
+    throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache page response is invalid.");
   }
   const manifest = parseManifest(result.manifest);
   const entries = result.entries.map(parseEntry);
-  if (entries.length > limit) throw new CacheRejected("Cache page exceeds its requested size.");
+  if (entries.length > limit) throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache page exceeds its requested size.");
   for (let index = 1; index < entries.length; index += 1) {
     const previous = entries[index - 1];
     const current = entries[index];
@@ -281,14 +338,14 @@ async function getPage(
         && current.userId.localeCompare(previous.userId) <= 0
       )
     ) {
-      throw new CacheRejected("Cache page order is invalid.");
+      throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache page order is invalid.");
     }
   }
   let nextCursor: {
     afterRank: number; afterScore: number; afterUserId: string;
   } | null = null;
   if (result.nextCursor !== null) {
-    if (!isRecord(result.nextCursor)) throw new CacheRejected("Cache cursor is invalid.");
+    if (!isRecord(result.nextCursor)) throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache cursor is invalid.");
     const { afterRank, afterScore, afterUserId } = result.nextCursor;
     if (
       !safeInteger(afterRank, 1)
@@ -297,7 +354,7 @@ async function getPage(
       || afterUserId.length === 0
       || entries.length !== limit
     ) {
-      throw new CacheRejected("Cache cursor boundary is invalid.");
+      throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache cursor boundary is invalid.");
     }
     nextCursor = { afterRank, afterScore, afterUserId };
   }
@@ -305,14 +362,14 @@ async function getPage(
 }
 
 function parseEntry(value: unknown): CacheEntry {
-  if (!isRecord(value)) throw new CacheRejected("Cache entry is invalid.");
+  if (!isRecord(value)) throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache entry is invalid.");
   const userId = value.userId ?? value.user_id;
   const tieSize = value.tieSize ?? value.tie_size;
   const levelSnapshot = value.levelSnapshot ?? value.level_snapshot ?? null;
   let parsedLevelSnapshot: number | null = null;
   if (levelSnapshot !== null) {
     if (!safeInteger(levelSnapshot)) {
-      throw new CacheRejected("Cache entry level snapshot is invalid.");
+      throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache entry level snapshot is invalid.");
     }
     parsedLevelSnapshot = levelSnapshot;
   }
@@ -324,7 +381,7 @@ function parseEntry(value: unknown): CacheEntry {
     || !safeInteger(value.score, Number.MIN_SAFE_INTEGER)
     || Number(value.score) < 0
   ) {
-    throw new CacheRejected("Cache entry contains invalid rank data.");
+    throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache entry contains invalid rank data.");
   }
   return {
     userId,
@@ -341,23 +398,21 @@ export function parseOwnLeaderboardD1Entry(value: unknown, viewerId: string): Ca
   if (value === null) return null;
   const parsed = parseEntry(value);
   if (parsed.userId !== viewerId) {
-    throw new CacheRejected("D1 rank entry does not belong to the authenticated viewer.");
+    throw new CacheRejected("WORKER_RESPONSE_INVALID", "D1 rank entry does not belong to the authenticated viewer.");
   }
   return parsed;
 }
 
-async function getOwnRankFromD1(snapshot: LeaderboardSnapshot, viewerId: string): Promise<{
+async function getOwnRankFromD1(snapshot: LeaderboardReadSnapshot, viewerId: string): Promise<{
   manifest: CacheManifest;
   entry: CacheEntry | null;
 }> {
   const params = new URLSearchParams({ snapshotId: snapshot.id, userId: viewerId });
-  const result = await requestLeaderboardD1<CacheRank>(
+  const result = await readWorker<CacheRank>(
     `${CACHE_RANK_PATH}?${params.toString()}`,
-    undefined,
-    { method: "GET" },
   );
   if (!isRecord(result) || result.ok !== true || !("entry" in result)) {
-    throw new CacheRejected("D1 own-rank response is invalid.");
+    throw new CacheRejected("WORKER_RESPONSE_INVALID", "D1 own-rank response is invalid.");
   }
   return {
     manifest: parseManifest(result.manifest),
@@ -410,6 +465,7 @@ function recordReadSource(
   scope: LeaderboardScope,
   endpoint: "page" | "own_rank",
   outcome: "READ_SUCCESS" | "READ_FALLBACK" | "READ_CANONICAL",
+  error?: unknown,
 ): void {
   try {
     if (outcome === "READ_SUCCESS") {
@@ -423,7 +479,7 @@ function recordReadSource(
     const source = outcome === "READ_SUCCESS" ? "D1" : "PostgreSQL";
     const message = `${category} ${outcome} scope=${scopeLabel} endpoint=${endpoint} source=${source}`;
     if (outcome === "READ_FALLBACK") {
-      logger.warn(category, message);
+      logger.warn(category, `${message} reason=${fallbackReason(error)}`);
     } else {
       logger.info(category, message);
     }
@@ -453,6 +509,7 @@ export async function getLeaderboardPageWithCache(input: {
   // A first-page read checks the latest canonical ledger and roster before
   // displaying cached ranking data. It never forces a revision for an unchanged
   // source; cursor pages remain pinned to their original snapshot.
+  let previouslyEnsuredSeasonKey: string | undefined;
   if (!input.cursor) {
     const database = input.database ?? getPrisma() as PrismaClient;
     const now = input.now ? new Date(input.now) : new Date();
@@ -462,6 +519,7 @@ export async function getLeaderboardPageWithCache(input: {
       now,
       database,
     });
+    if (!input.seasonKey) previouslyEnsuredSeasonKey = season.seasonKey;
     if (season.status !== "CLOSED") {
       await ensureCurrentLiveSnapshot({ season, now, database });
     }
@@ -481,13 +539,15 @@ export async function getLeaderboardPageWithCache(input: {
   const now = input.now ? new Date(input.now) : new Date();
   const limit = parseLeaderboardPageSize(input.limit);
   try {
-    const season = await resolveSeason({
-      scope: input.scope,
-      ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
-      now,
-      ...(input.cursor ? { cursor: input.cursor } : {}),
-      database,
-    });
+    const season = previouslyEnsuredSeasonKey
+      ? await ensureLeaderboardSeason({ scope: input.scope, asOf: now, previouslyEnsuredSeasonKey }, database)
+      : await resolveSeason({
+        scope: input.scope,
+        ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
+        now,
+        ...(input.cursor ? { cursor: input.cursor } : {}),
+        database,
+      });
     const snapshot = input.cursor
       ? await validateCursorSnapshot({
         cursor: input.cursor,
@@ -495,7 +555,7 @@ export async function getLeaderboardPageWithCache(input: {
         database,
         now,
       })
-      : await getLatestLeaderboardSnapshot(
+      : await getLatestLeaderboardReadSnapshot(
         season.id,
         season.status === "CLOSED" ? "FINAL" : "LIVE",
         database,
@@ -505,9 +565,9 @@ export async function getLeaderboardPageWithCache(input: {
       && !input.cursor
       && !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
     ) {
-      throw new CacheRejected("PostgreSQL snapshot uses an obsolete scoring mode.");
+      throw new CacheRejected("CANONICAL_CHANGED", "PostgreSQL snapshot uses an obsolete scoring mode.");
     }
-    if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
+    if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("PROJECTION_NOT_READY", "Canonical snapshot is not cached.");
     // These reads are independent after resolving the canonical snapshot.
     // Run the PostgreSQL roster/source checks and both D1 reads together instead
     // of serially adding round trips to every leaderboard open. A LIVE D1
@@ -537,35 +597,35 @@ export async function getLeaderboardPageWithCache(input: {
         }),
     ]);
     if (!input.cursor && ledgerChangeAfterSnapshot) {
-      throw new CacheRejected("Canonical Points V2 ledger is newer than the cached leaderboard snapshot.");
+      throw new CacheRejected("CANONICAL_CHANGED", "Canonical Points V2 ledger is newer than the cached leaderboard snapshot.");
     }
     if (season.status !== "CLOSED" && snapshot.entryCount !== activeUserCount) {
-      throw new CacheRejected("PostgreSQL snapshot does not include the active account roster.");
+      throw new CacheRejected("CANONICAL_CHANGED", "PostgreSQL snapshot does not include the active account roster.");
+    }
+    if (manifest && manifest.snapshotId !== snapshot.id) {
+      throw new CacheRejected("PROJECTION_POINTER_MISMATCH", "D1 current pointer does not match PostgreSQL.");
     }
     if (manifest) validateManifestForSnapshot(manifest, season, snapshot);
-    if (!input.cursor && manifest?.snapshotId !== snapshot.id) {
-      throw new CacheRejected("D1 current pointer is behind PostgreSQL.");
-    }
     const isStale = manifest
       ? validateFreshness(manifest, now)
       : validateSnapshotFreshness(snapshot, now);
     validateManifestForSnapshot(page.manifest, season, snapshot);
     if (manifest && !compareManifests(manifest, page.manifest)) {
-      throw new CacheRejected("Current pointer and page projection metadata differ.");
+      throw new CacheRejected("PROJECTION_METADATA_MISMATCH", "Current pointer and page projection metadata differ.");
     }
     if (
       !input.cursor
       && snapshot.entryCount > 0
       && page.entries.length === 0
     ) {
-      throw new CacheRejected("Cache first page is empty despite canonical snapshot entries.");
+      throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache first page is empty despite canonical snapshot entries.");
     }
     if (
       !input.cursor
       && snapshot.entryCount > page.entries.length
       && page.nextCursor === null
     ) {
-      throw new CacheRejected("Cache page is incomplete.");
+      throw new CacheRejected("WORKER_RESPONSE_INVALID", "Cache page is incomplete.");
     }
     if (page.nextCursor) {
       const boundary = await database.leaderboardSnapshotEntry.findFirst({
@@ -580,7 +640,7 @@ export async function getLeaderboardPageWithCache(input: {
         || boundary.rank !== page.nextCursor.afterRank
         || boundary.score.toString() !== String(page.nextCursor.afterScore)
       ) {
-        throw new CacheRejected("Cache cursor boundary is not canonical.");
+        throw new CacheRejected("PROJECTION_METADATA_MISMATCH", "Cache cursor boundary is not canonical.");
       }
     }
     const blockedUserIds = await getBlockedUserIds(input.viewerId, database);
@@ -598,7 +658,7 @@ export async function getLeaderboardPageWithCache(input: {
     // inactive account appears in its page, canonical pagination must fill
     // the gap instead of silently returning an underfilled page.
     if (page.entries.some((entry) => !visibleUserIds.has(entry.userId))) {
-      throw new CacheRejected("D1 page includes accounts filtered for this viewer.");
+      throw new CacheRejected("VISIBILITY_FILTER", "D1 page includes accounts filtered for this viewer.");
     }
     const entries: PublicLeaderboardEntry[] = page.entries.flatMap((entry) =>
       visibleUserIds.has(entry.userId)
@@ -641,7 +701,7 @@ export async function getLeaderboardPageWithCache(input: {
     return response;
   } catch (error) {
     if (error instanceof LeaderboardError) throw error;
-    recordReadSource(input.scope, "page", "READ_FALLBACK");
+    recordReadSource(input.scope, "page", "READ_FALLBACK", error);
     return getLeaderboardPage({ ...input, database });
   }
 }
@@ -681,7 +741,7 @@ export async function getMyLeaderboardRankWithCache(input: {
     return getMyLeaderboardRank({ ...input, now, database });
   }
   try {
-    const snapshot = await getLatestLeaderboardSnapshot(
+    const snapshot = await getLatestLeaderboardReadSnapshot(
       season.id,
       season.status === "CLOSED" ? "FINAL" : "LIVE",
       database,
@@ -691,7 +751,7 @@ export async function getMyLeaderboardRankWithCache(input: {
       || snapshot.status !== "READY"
       || !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
     ) {
-      throw new CacheRejected("Canonical rank snapshot is unavailable or obsolete.");
+      throw new CacheRejected("CANONICAL_CHANGED", "Canonical rank snapshot is unavailable or obsolete.");
     }
     const [current, cached, activeCount, newerLedger] = await Promise.all([
       getCurrentManifest(season),
@@ -712,23 +772,26 @@ export async function getMyLeaderboardRankWithCache(input: {
           select: { id: true },
         }),
     ]);
+    if (current.snapshotId !== snapshot.id) {
+      throw new CacheRejected("PROJECTION_POINTER_MISMATCH", "D1 current pointer does not match PostgreSQL.");
+    }
     validateManifestForSnapshot(current, season, snapshot);
     validateManifestForSnapshot(cached.manifest, season, snapshot);
     if (!compareManifests(current, cached.manifest)) {
-      throw new CacheRejected("D1 own-rank and current-pointer revisions differ.");
+      throw new CacheRejected("PROJECTION_METADATA_MISMATCH", "D1 own-rank and current-pointer revisions differ.");
     }
     validateFreshness(current, now);
     // Active users, including zero-point students, belong to the snapshot.
     // A missing D1 row is not a reliable "not ranked" answer; let the
     // canonical path distinguish a truly ineligible account.
     if (cached.entry === null) {
-      throw new CacheRejected("Own-rank row is missing from D1; check canonical eligibility.");
+      throw new CacheRejected("PROJECTION_NOT_READY", "Own-rank row is missing from D1; check canonical eligibility.");
     }
     if (newerLedger) {
-      throw new CacheRejected("Points V2 ledger changed since the D1 rank snapshot.");
+      throw new CacheRejected("CANONICAL_CHANGED", "Points V2 ledger changed since the D1 rank snapshot.");
     }
     if (season.status !== "CLOSED" && activeCount !== snapshot.entryCount) {
-      throw new CacheRejected("D1 rank snapshot is behind the active roster.");
+      throw new CacheRejected("CANONICAL_CHANGED", "D1 rank snapshot is behind the active roster.");
     }
     const blockedUserIds = await getBlockedUserIds(input.viewerId, database);
     const totalRankedUsers = await database.leaderboardSnapshotEntry.count({
@@ -748,7 +811,7 @@ export async function getMyLeaderboardRankWithCache(input: {
     return response;
   } catch (error) {
     if (error instanceof LeaderboardError) throw error;
-    recordReadSource(input.scope, "own_rank", "READ_FALLBACK");
+    recordReadSource(input.scope, "own_rank", "READ_FALLBACK", error);
     return getMyLeaderboardRank({ ...input, now, database });
   }
 }

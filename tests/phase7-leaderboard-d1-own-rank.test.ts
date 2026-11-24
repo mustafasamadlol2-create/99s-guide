@@ -48,7 +48,7 @@ test("Phase 7.5B: own-rank D1 branch validates pointer, freshness, ledger, roste
   assert.match(part, /if \(newerLedger\)/u);
   assert.match(part, /activeCount !== snapshot\.entryCount/u);
   assert.match(part, /getBlockedUserIds\(input\.viewerId, database\)/u);
-  assert.match(part, /recordReadSource\(input\.scope, "own_rank", "READ_FALLBACK"\);\s*return getMyLeaderboardRank/u);
+  assert.match(part, /recordReadSource\(input\.scope, "own_rank", "READ_FALLBACK", error\);\s*return getMyLeaderboardRank/u);
 });
 
 test("Phase 7.5B: hidden/disabled page entries cannot underfill a D1 page", () => {
@@ -57,6 +57,6 @@ test("Phase 7.5B: hidden/disabled page entries cannot underfill a D1 page", () =
     source.indexOf("export async function getMyLeaderboardRankWithCache"),
   );
   assert.match(page, /page\.entries\.some\(\(entry\) => !visibleUserIds\.has\(entry\.userId\)\)/u);
-  assert.match(page, /throw new CacheRejected\("D1 page includes accounts filtered/u);
-  assert.match(page, /recordReadSource\(input\.scope, "page", "READ_FALLBACK"\);\s*return getLeaderboardPage/u);
+  assert.match(page, /throw new CacheRejected\("VISIBILITY_FILTER", "D1 page includes accounts filtered/u);
+  assert.match(page, /recordReadSource\(input\.scope, "page", "READ_FALLBACK", error\);\s*return getLeaderboardPage/u);
 });

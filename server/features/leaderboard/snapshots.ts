@@ -40,6 +40,23 @@ const ENTRY_INSERT_BATCH_SIZE = 1000;
 
 type Transaction = Prisma.TransactionClient;
 
+const leaderboardReadSnapshotSelect = {
+  id: true,
+  seasonId: true,
+  snapshotType: true,
+  status: true,
+  generatedAt: true,
+  scoreThrough: true,
+  entryCount: true,
+  sourceFingerprint: true,
+  rankingSemanticsVersion: true,
+  revision: true,
+} satisfies Prisma.LeaderboardSnapshotSelect;
+
+export type LeaderboardReadSnapshot = Prisma.LeaderboardSnapshotGetPayload<{
+  select: typeof leaderboardReadSnapshotSelect;
+}>;
+
 export type SnapshotBuildOutcome = {
   snapshot: LeaderboardSnapshot | null;
   lockBusy: boolean;
@@ -47,7 +64,7 @@ export type SnapshotBuildOutcome = {
 };
 
 export type ReadableSnapshot = {
-  snapshot: LeaderboardSnapshot;
+  snapshot: LeaderboardReadSnapshot;
   isStale: boolean;
 };
 
@@ -417,14 +434,29 @@ export async function getLatestLeaderboardSnapshot(
   snapshotType: LeaderboardSnapshotType,
   database: PrismaClient = getPrisma() as PrismaClient,
 ): Promise<LeaderboardSnapshot | null> {
+  return database.leaderboardSnapshot.findFirst(latestReadySnapshotArgs(seasonId, snapshotType));
+}
+
+export function getLatestLeaderboardReadSnapshot(
+  seasonId: string,
+  snapshotType: LeaderboardSnapshotType,
+  database: PrismaClient,
+): Promise<LeaderboardReadSnapshot | null> {
   return database.leaderboardSnapshot.findFirst({
-    where: { seasonId, snapshotType, status: "READY" },
-    orderBy: { revision: "desc" },
+    ...latestReadySnapshotArgs(seasonId, snapshotType),
+    select: leaderboardReadSnapshotSelect,
   });
 }
 
+function latestReadySnapshotArgs(seasonId: string, snapshotType: LeaderboardSnapshotType) {
+  return {
+    where: { seasonId, snapshotType, status: "READY" },
+    orderBy: { revision: "desc" as const },
+  };
+}
+
 export function isLeaderboardSnapshotScoringCurrent(
-  snapshot: LeaderboardSnapshot,
+  snapshot: Pick<LeaderboardReadSnapshot, "rankingSemanticsVersion">,
   scope: LeaderboardScope,
 ): boolean {
   return snapshot.rankingSemanticsVersion
@@ -531,9 +563,10 @@ export async function refreshActiveLeaderboardSnapshotsForUser(
 export async function getLeaderboardSnapshotById(
   snapshotId: string,
   database: PrismaClient = getPrisma() as PrismaClient,
-): Promise<LeaderboardSnapshot | null> {
+): Promise<LeaderboardReadSnapshot | null> {
   return database.leaderboardSnapshot.findUnique({
     where: { id: snapshotId },
+    select: leaderboardReadSnapshotSelect,
   });
 }
 
@@ -547,7 +580,7 @@ export async function getReadableLeaderboardSnapshot(input: {
   assertValidInstant(now, "Leaderboard read time");
   const scope = leaderboardSeasonToWindow(input.season).scope;
   if (input.season.status === "CLOSED") {
-    const snapshot = await getLatestLeaderboardSnapshot(
+    const snapshot = await getLatestLeaderboardReadSnapshot(
       input.season.id,
       "FINAL",
       database,
@@ -570,7 +603,7 @@ export async function getReadableLeaderboardSnapshot(input: {
     }
     return { snapshot: rebuilt, isStale: false };
   }
-  const initial = await getLatestLeaderboardSnapshot(
+  const initial = await getLatestLeaderboardReadSnapshot(
     input.season.id,
     "LIVE",
     database,

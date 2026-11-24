@@ -39,6 +39,7 @@ export async function ensureLeaderboardSeason(input: {
   scope: LeaderboardScope;
   asOf: Date;
   semesterBoundaries?: readonly ServerOwnedSemesterBoundary[];
+  previouslyEnsuredSeasonKey?: string;
 }, database: PrismaClient = getPrisma() as PrismaClient): Promise<LeaderboardSeason> {
   const window = getLeaderboardSeasonWindow(
     input.scope,
@@ -51,10 +52,24 @@ export async function ensureLeaderboardSeason(input: {
       "Season configuration produced an invalid canonical key.",
     );
   }
+  const where = { scope_seasonKey: { scope: window.scope, seasonKey: window.seasonKey } };
+  const canActivate = window.startsAt !== null && input.asOf >= window.startsAt;
+  if (input.previouslyEnsuredSeasonKey === window.seasonKey) {
+    // Read the season again after live freshness checks so a concurrent close
+    // is visible before choosing a snapshot.
+    const current = await database.leaderboardSeason.findUnique({ where });
+    if (
+      current
+      && datesMatch(current.startsAt, window.startsAt)
+      && datesMatch(current.endsAt, window.endsAt)
+      && !(current.status === "UPCOMING" && canActivate)
+    ) {
+      return current;
+    }
+  }
   return database.$transaction(async (tx) => {
     const id = randomUUID();
-    const initialStatus =
-      !window.startsAt || input.asOf >= window.startsAt ? "ACTIVE" : "UPCOMING";
+    const initialStatus = !window.startsAt || canActivate ? "ACTIVE" : "UPCOMING";
     await tx.$executeRaw`
       INSERT INTO "LeaderboardSeason" (
         "id", "scope", "seasonKey", "startsAt", "endsAt", "status",
@@ -65,14 +80,7 @@ export async function ensureLeaderboardSeason(input: {
       )
       ON CONFLICT ("scope", "seasonKey") DO NOTHING
     `;
-    const season = await tx.leaderboardSeason.findUniqueOrThrow({
-      where: {
-        scope_seasonKey: {
-          scope: window.scope,
-          seasonKey: window.seasonKey,
-        },
-      },
-    });
+    const season = await tx.leaderboardSeason.findUniqueOrThrow({ where });
     if (
       !datesMatch(season.startsAt, window.startsAt)
       || !datesMatch(season.endsAt, window.endsAt)
@@ -84,8 +92,7 @@ export async function ensureLeaderboardSeason(input: {
     }
     if (
       season.status === "UPCOMING"
-      && window.startsAt
-      && input.asOf >= window.startsAt
+      && canActivate
     ) {
       return tx.leaderboardSeason.update({
         where: { id: season.id },

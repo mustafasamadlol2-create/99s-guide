@@ -83,6 +83,7 @@ export async function enqueueLeaderboardSnapshotProjection(
       },
     },
     update: {},
+    select: { id: true },
     create: {
       snapshotId: input.snapshot.id, workType: "BEGIN", chunkIndex: -1,
       projectionGeneration, payload: beginPayload,
@@ -104,6 +105,7 @@ export async function enqueueLeaderboardSnapshotProjection(
         },
       },
       update: {},
+      select: { id: true },
       create: {
         snapshotId: input.snapshot.id, workType: "CHUNK", chunkIndex,
         projectionGeneration, payload,
@@ -117,6 +119,7 @@ export async function enqueueLeaderboardSnapshotProjection(
       },
     },
     update: {},
+    select: { id: true },
     create: {
       snapshotId: input.snapshot.id, workType: "COMMIT", chunkIndex: -1,
       projectionGeneration, payload: { manifest },

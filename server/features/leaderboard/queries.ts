@@ -1,13 +1,18 @@
 import {
   Prisma,
   type LeaderboardSeason,
-  type LeaderboardSnapshot,
   type PrismaClient,
 } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { LeaderboardError } from "./errors.js";
 import { encodeLeaderboardCursor } from "./cursor.js";
-import { getLeaderboardSnapshotById, getReadableLeaderboardSnapshot, isLeaderboardSnapshotScoringCurrent, LEADERBOARD_LIVE_CURSOR_RETENTION_MS } from "./snapshots.js";
+import {
+  getLeaderboardSnapshotById,
+  getReadableLeaderboardSnapshot,
+  isLeaderboardSnapshotScoringCurrent,
+  LEADERBOARD_LIVE_CURSOR_RETENTION_MS,
+  type LeaderboardReadSnapshot,
+} from "./snapshots.js";
 import { getLeaderboardSeasonById, getLeaderboardSeasonByKey, ensureLeaderboardSeason, leaderboardSeasonToWindow } from "./seasons.js";
 import { decodeLeaderboardScore, readUserLeaderboardScore } from "./scores.js";
 import {
@@ -175,7 +180,7 @@ export async function getBlockedUserIds(
     block.blockerId === viewerId ? block.blockedId : block.blockerId))];
 }
 
-function cursorExpiry(snapshot: LeaderboardSnapshot): number | null {
+function cursorExpiry(snapshot: LeaderboardReadSnapshot): number | null {
   return snapshot.snapshotType === "LIVE"
     ? snapshot.generatedAt.getTime() + LEADERBOARD_LIVE_CURSOR_RETENTION_MS
     : null;
@@ -186,7 +191,7 @@ export async function validateCursorSnapshot(input: {
   season: LeaderboardSeason;
   database: PrismaClient;
   now: Date;
-}): Promise<LeaderboardSnapshot> {
+}): Promise<LeaderboardReadSnapshot> {
   const snapshot = await getLeaderboardSnapshotById(
     input.cursor.snapshotId,
     input.database,
@@ -270,7 +275,7 @@ export async function getLeaderboardPage(input: {
     ...(input.cursor ? { cursor: input.cursor } : {}),
     database,
   });
-  let snapshot: LeaderboardSnapshot;
+  let snapshot: LeaderboardReadSnapshot;
   let isStale = false;
   if (input.cursor) {
     snapshot = await validateCursorSnapshot({
