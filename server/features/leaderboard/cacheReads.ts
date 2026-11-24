@@ -16,6 +16,7 @@ import {
   getBlockedUserIds,
   getLeaderboardPage,
   getMyLeaderboardRank,
+  isLeaderboardScope,
   parseLeaderboardPageSize,
   resolveSeason,
   safePublicAvatarUrl,
@@ -405,16 +406,30 @@ function cacheIsEnabled(): boolean {
   return isStudyFeatureEnabled("LEADERBOARD_D1_READ_ENABLED");
 }
 
-function warnFallback(): void {
-  recordOperationalOutcome({
-    feature: "leaderboard_d1",
-    operation: "fallback",
-    result: "fallback",
-  });
-  logger.warn(
-    "[LeaderboardD1]",
-    "Cache read unavailable or inconsistent; serving canonical PostgreSQL data.",
-  );
+function recordReadSource(
+  scope: LeaderboardScope,
+  endpoint: "page" | "own_rank",
+  outcome: "READ_SUCCESS" | "READ_FALLBACK" | "READ_CANONICAL",
+): void {
+  try {
+    if (outcome === "READ_SUCCESS") {
+      recordOperationalOutcome({ feature: "leaderboard_d1", operation: "request", result: "cache_hit" });
+    } else if (outcome === "READ_FALLBACK") {
+      recordOperationalOutcome({ feature: "leaderboard_d1", operation: "fallback", result: "fallback" });
+    }
+
+    const category = "[LeaderboardD1]";
+    const scopeLabel = isLeaderboardScope(scope) ? scope : "UNKNOWN";
+    const source = outcome === "READ_SUCCESS" ? "D1" : "PostgreSQL";
+    const message = `${category} ${outcome} scope=${scopeLabel} endpoint=${endpoint} source=${source}`;
+    if (outcome === "READ_FALLBACK") {
+      logger.warn(category, message);
+    } else {
+      logger.info(category, message);
+    }
+  } catch {
+    // Read-source telemetry is best-effort and must never affect read routing.
+  }
 }
 
 export async function getLeaderboardPageWithCache(input: {
@@ -454,10 +469,14 @@ export async function getLeaderboardPageWithCache(input: {
     // flag is enabled, the same fresh canonical snapshot is validated against
     // D1 below; any missing/lagging replica falls back to PostgreSQL.
     if (!cacheIsEnabled()) {
+      recordReadSource(input.scope, "page", "READ_CANONICAL");
       return getLeaderboardPage({ ...input, now, database });
     }
   }
-  if (!cacheIsEnabled()) return getLeaderboardPage(input);
+  if (!cacheIsEnabled()) {
+    recordReadSource(input.scope, "page", "READ_CANONICAL");
+    return getLeaderboardPage(input);
+  }
   const database = input.database ?? getPrisma() as PrismaClient;
   const now = input.now ? new Date(input.now) : new Date();
   const limit = parseLeaderboardPageSize(input.limit);
@@ -608,7 +627,7 @@ export async function getLeaderboardPageWithCache(input: {
         expiresAt,
       })
       : null;
-    return {
+    const response = {
       scope: input.scope,
       season: seasonDto(season),
       generatedAt: snapshot.generatedAt.toISOString(),
@@ -618,9 +637,11 @@ export async function getLeaderboardPageWithCache(input: {
       entries,
       nextCursor,
     };
+    recordReadSource(input.scope, "page", "READ_SUCCESS");
+    return response;
   } catch (error) {
     if (error instanceof LeaderboardError) throw error;
-    warnFallback();
+    recordReadSource(input.scope, "page", "READ_FALLBACK");
     return getLeaderboardPage({ ...input, database });
   }
 }
@@ -656,6 +677,7 @@ export async function getMyLeaderboardRankWithCache(input: {
     await ensureCurrentLiveSnapshot({ season, now, database });
   }
   if (!cacheIsEnabled()) {
+    recordReadSource(input.scope, "own_rank", "READ_CANONICAL");
     return getMyLeaderboardRank({ ...input, now, database });
   }
   try {
@@ -712,7 +734,7 @@ export async function getMyLeaderboardRankWithCache(input: {
     const totalRankedUsers = await database.leaderboardSnapshotEntry.count({
       where: buildBaseEntryWhere(snapshot.id, blockedUserIds),
     });
-    return {
+    const response = {
       scope: input.scope,
       season: seasonDto(season),
       rank: cached.entry.rank,
@@ -722,9 +744,11 @@ export async function getMyLeaderboardRankWithCache(input: {
       notRanked: false,
       snapshotGeneratedAt: snapshot.generatedAt.toISOString(),
     };
+    recordReadSource(input.scope, "own_rank", "READ_SUCCESS");
+    return response;
   } catch (error) {
     if (error instanceof LeaderboardError) throw error;
-    warnFallback();
+    recordReadSource(input.scope, "own_rank", "READ_FALLBACK");
     return getMyLeaderboardRank({ ...input, now, database });
   }
 }

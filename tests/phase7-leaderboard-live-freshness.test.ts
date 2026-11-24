@@ -87,8 +87,8 @@ test("Phase 7.5A: first-page D1 branch is reachable only behind the read flag", 
   assert.match(code, /const task = getReadableLeaderboardSnapshot\(\{/u);
   assert.doesNotMatch(code, /forceRevision: true/u);
   const firstPage = code.slice(code.indexOf("export async function getLeaderboardPageWithCache"), code.indexOf("export async function getMyLeaderboardRankWithCache"));
-  assert.match(firstPage, /if \(!cacheIsEnabled\(\)\) \{\s*return getLeaderboardPage/u);
+  assert.match(firstPage, /if \(!cacheIsEnabled\(\)\) \{\s*recordReadSource\(input\.scope, "page", "READ_CANONICAL"\);\s*return getLeaderboardPage/u);
   assert.match(firstPage, /getCurrentManifest\(season\)/u);
   assert.match(firstPage, /validateManifestForSnapshot\(manifest, season, snapshot\)/u);
-  assert.match(firstPage, /warnFallback\(\);\s*return getLeaderboardPage/u);
+  assert.match(firstPage, /recordReadSource\(input\.scope, "page", "READ_FALLBACK"\);\s*return getLeaderboardPage/u);
 });

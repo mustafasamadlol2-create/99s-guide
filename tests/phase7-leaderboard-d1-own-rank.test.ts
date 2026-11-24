@@ -39,7 +39,7 @@ test("Phase 7.5B: null rank is parsed but handled by canonical eligibility fallb
 
 test("Phase 7.5B: own-rank D1 branch validates pointer, freshness, ledger, roster and falls back", () => {
   const part = source.slice(source.indexOf("export async function getMyLeaderboardRankWithCache"));
-  assert.match(part, /if \(!cacheIsEnabled\(\)\)\s*\{\s*return getMyLeaderboardRank/u);
+  assert.match(part, /if \(!cacheIsEnabled\(\)\)\s*\{\s*recordReadSource\(input\.scope, "own_rank", "READ_CANONICAL"\);\s*return getMyLeaderboardRank/u);
   assert.match(part, /getCurrentManifest\(season\)/u);
   assert.match(part, /getOwnRankFromD1\(snapshot, input\.viewerId\)/u);
   assert.match(part, /validateManifestForSnapshot\(current, season, snapshot\)/u);
@@ -48,7 +48,7 @@ test("Phase 7.5B: own-rank D1 branch validates pointer, freshness, ledger, roste
   assert.match(part, /if \(newerLedger\)/u);
   assert.match(part, /activeCount !== snapshot\.entryCount/u);
   assert.match(part, /getBlockedUserIds\(input\.viewerId, database\)/u);
-  assert.match(part, /warnFallback\(\);\s*return getMyLeaderboardRank/u);
+  assert.match(part, /recordReadSource\(input\.scope, "own_rank", "READ_FALLBACK"\);\s*return getMyLeaderboardRank/u);
 });
 
 test("Phase 7.5B: hidden/disabled page entries cannot underfill a D1 page", () => {
@@ -58,5 +58,5 @@ test("Phase 7.5B: hidden/disabled page entries cannot underfill a D1 page", () =
   );
   assert.match(page, /page\.entries\.some\(\(entry\) => !visibleUserIds\.has\(entry\.userId\)\)/u);
   assert.match(page, /throw new CacheRejected\("D1 page includes accounts filtered/u);
-  assert.match(page, /warnFallback\(\);\s*return getLeaderboardPage/u);
+  assert.match(page, /recordReadSource\(input\.scope, "page", "READ_FALLBACK"\);\s*return getLeaderboardPage/u);
 });
