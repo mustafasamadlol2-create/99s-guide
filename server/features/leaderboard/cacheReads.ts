@@ -334,6 +334,36 @@ function parseEntry(value: unknown): CacheEntry {
   };
 }
 
+// The Worker returns snake_case rank rows from SQLite. Never trust an
+// unrelated or malformed row for the authenticated account.
+export function parseOwnLeaderboardD1Entry(value: unknown, viewerId: string): CacheEntry | null {
+  if (value === null) return null;
+  const parsed = parseEntry(value);
+  if (parsed.userId !== viewerId) {
+    throw new CacheRejected("D1 rank entry does not belong to the authenticated viewer.");
+  }
+  return parsed;
+}
+
+async function getOwnRankFromD1(snapshot: LeaderboardSnapshot, viewerId: string): Promise<{
+  manifest: CacheManifest;
+  entry: CacheEntry | null;
+}> {
+  const params = new URLSearchParams({ snapshotId: snapshot.id, userId: viewerId });
+  const result = await requestLeaderboardD1<CacheRank>(
+    `${CACHE_RANK_PATH}?${params.toString()}`,
+    undefined,
+    { method: "GET" },
+  );
+  if (!isRecord(result) || result.ok !== true || !("entry" in result)) {
+    throw new CacheRejected("D1 own-rank response is invalid.");
+  }
+  return {
+    manifest: parseManifest(result.manifest),
+    entry: parseOwnLeaderboardD1Entry(result.entry, viewerId),
+  };
+}
+
 function compareManifests(a: CacheManifest, b: CacheManifest): boolean {
   return a.snapshotId === b.snapshotId
     && a.revision === b.revision
@@ -545,6 +575,12 @@ export async function getLeaderboardPageWithCache(input: {
         where: buildBaseEntryWhere(snapshot.id, blockedUserIds),
       }),
     ]);
+    // D1 paginates before account visibility filtering. If a blocked or
+    // inactive account appears in its page, canonical pagination must fill
+    // the gap instead of silently returning an underfilled page.
+    if (page.entries.some((entry) => !visibleUserIds.has(entry.userId))) {
+      throw new CacheRejected("D1 page includes accounts filtered for this viewer.");
+    }
     const entries: PublicLeaderboardEntry[] = page.entries.flatMap((entry) =>
       visibleUserIds.has(entry.userId)
         ? [{
@@ -605,10 +641,11 @@ export async function getMyLeaderboardRankWithCache(input: {
   notRanked: boolean;
   snapshotGeneratedAt: string;
 }> {
-  // Own rank and first-page reads reconcile against the same canonical
-  // freshness rules; neither endpoint forces an unnecessary snapshot revision.
   const database = input.database ?? getPrisma() as PrismaClient;
   const now = input.now ? new Date(input.now) : new Date();
+  // Canonical freshness remains authoritative even with D1 reads enabled.
+  // With projection lag, the read fails over to PostgreSQL rather than showing
+  // a stale rank or score.
   const season = await resolveSeason({
     scope: input.scope,
     ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
@@ -618,5 +655,76 @@ export async function getMyLeaderboardRankWithCache(input: {
   if (season.status !== "CLOSED") {
     await ensureCurrentLiveSnapshot({ season, now, database });
   }
-  return getMyLeaderboardRank({ ...input, now, database });
+  if (!cacheIsEnabled()) {
+    return getMyLeaderboardRank({ ...input, now, database });
+  }
+  try {
+    const snapshot = await getLatestLeaderboardSnapshot(
+      season.id,
+      season.status === "CLOSED" ? "FINAL" : "LIVE",
+      database,
+    );
+    if (
+      !snapshot
+      || snapshot.status !== "READY"
+      || !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
+    ) {
+      throw new CacheRejected("Canonical rank snapshot is unavailable or obsolete.");
+    }
+    const [current, cached, activeCount, newerLedger] = await Promise.all([
+      getCurrentManifest(season),
+      getOwnRankFromD1(snapshot, input.viewerId),
+      season.status === "CLOSED"
+        ? Promise.resolve(snapshot.entryCount)
+        : database.user.count({
+          where: { accountStatus: "ACTIVE", createdAt: { lte: now } },
+        }),
+      snapshot.snapshotType === "FINAL"
+        ? Promise.resolve(null)
+        : database.studyPointsLedgerEntry.findFirst({
+          where: {
+            createdAt: { gt: snapshot.generatedAt },
+            sourceType: { not: "LEGACY_POINTS_LOG" },
+            category: { not: "LEGACY" },
+          },
+          select: { id: true },
+        }),
+    ]);
+    validateManifestForSnapshot(current, season, snapshot);
+    validateManifestForSnapshot(cached.manifest, season, snapshot);
+    if (!compareManifests(current, cached.manifest)) {
+      throw new CacheRejected("D1 own-rank and current-pointer revisions differ.");
+    }
+    validateFreshness(current, now);
+    // Active users, including zero-point students, belong to the snapshot.
+    // A missing D1 row is not a reliable "not ranked" answer; let the
+    // canonical path distinguish a truly ineligible account.
+    if (cached.entry === null) {
+      throw new CacheRejected("Own-rank row is missing from D1; check canonical eligibility.");
+    }
+    if (newerLedger) {
+      throw new CacheRejected("Points V2 ledger changed since the D1 rank snapshot.");
+    }
+    if (season.status !== "CLOSED" && activeCount !== snapshot.entryCount) {
+      throw new CacheRejected("D1 rank snapshot is behind the active roster.");
+    }
+    const blockedUserIds = await getBlockedUserIds(input.viewerId, database);
+    const totalRankedUsers = await database.leaderboardSnapshotEntry.count({
+      where: buildBaseEntryWhere(snapshot.id, blockedUserIds),
+    });
+    return {
+      scope: input.scope,
+      season: seasonDto(season),
+      rank: cached.entry.rank,
+      score: cached.entry.score,
+      tieSize: cached.entry.tieSize,
+      totalRankedUsers,
+      notRanked: false,
+      snapshotGeneratedAt: snapshot.generatedAt.toISOString(),
+    };
+  } catch (error) {
+    if (error instanceof LeaderboardError) throw error;
+    warnFallback();
+    return getMyLeaderboardRank({ ...input, now, database });
+  }
 }
