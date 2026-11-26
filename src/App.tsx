@@ -3109,12 +3109,23 @@ function AppContent({
   };
   refreshAcademicDataRef.current = refreshAcademicData;
 
+  const academicUserId = currentUser?.id;
+  const academicStudentGroup = currentUser?.studentGroup;
+  useEffect(() => {
+    if (!academicUserId || !isActive) return;
+    refreshAcademicDataRef.current?.(false);
+  }, [academicUserId, academicStudentGroup, isActive]);
+
+  // Presence, progress, and profile updates can replace the User object
+  // frequently. Refresh the offline pack for academic scope, activation and
+  // the existing web/native network state instead.
+  useEffect(() => {
+    if (!academicUserId || !isActive || !isOnline) return;
+    DataSyncManager.fetchAndStoreAcademicMaterials().catch(() => {});
+  }, [academicUserId, academicStudentGroup, isActive, isOnline]);
+
   useEffect(() => {
     if (currentUser && isActive) {
-      refreshAcademicDataRef.current?.(false);
-
-      // Seed and synchronize local IndexedDB database stores
-      DataSyncManager.fetchAndStoreAcademicMaterials().catch(() => {});
       DataSyncManager.triggerBackgroundSync().catch(() => {});
     }
   }, [currentUser, isActive]);
@@ -3127,7 +3138,7 @@ function AppContent({
     const FOCUS_DEBOUNCE_MS = 30_000; // at most one full refresh per 30s on focus/visibility
 
     const fetchLatestData = () => {
-      if (currentUser && isActive) {
+      if (academicUserId && isActive) {
         const now = Date.now();
         if (now - lastFetchAt < FOCUS_DEBOUNCE_MS) return;
         lastFetchAt = now;
@@ -3167,7 +3178,7 @@ function AppContent({
       window.removeEventListener('visibilitychange', handleVisibility);
       if (syncTimer) clearTimeout(syncTimer);
     };
-  }, [currentUser, isActive]);
+  }, [academicUserId, academicStudentGroup, isActive]);
 
   // Helper to synchronize local data with backend database
   const syncWithBackend = async (

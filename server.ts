@@ -44,6 +44,7 @@ import * as OAuthService from "./server/services/oauthService.js";
 import { EmailService } from "./server/services/emailService.js";
 import crypto from "crypto";
 import { prisma, getPrisma, disconnectPrisma } from "./server/services/prismaClient.js";
+import { readLegacyPdf } from "./server/services/legacyPdfRead.js";
 import {
   enqueueMasteryD1RowDeletion,
   startPrivateD1SyncDrainer,
@@ -178,7 +179,8 @@ import {
 import { requestLogger } from "./server/middleware/requestLogger.js";
 import { buildOAuthPendingQuery, isOAuthStateBound, isValidPkceCodeChallenge, parseOAuthState } from "./server/services/oauthState.js";
 import { claimOAuthSessionRecord } from "./server/services/oauthSessionClaim.js";
-import { getRevokedSessionKey, isRevocationActive } from "./server/services/sessionRevocation.js";
+import { getRevokedSessionKey, REVOKED_SESSION_KEY_PREFIX, SESSION_LIFETIME_SECONDS } from "./server/services/sessionRevocation.js";
+import { readSessionAuthorization } from "./server/services/sessionAuthorization.js";
 import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRouter.js";
 import { createAIImportRouter } from "./server/services/ai/http/createAIImportRouter.js";
 import { createCalendarImportRouter, CalendarImportService } from "./server/services/calendarImport/index.js";
@@ -1039,25 +1041,17 @@ async function refreshUserSocketAuthorization(userId: string): Promise<void> {
   );
   if (sockets.length === 0) return;
 
-  let user: any;
+  let authorization: Awaited<ReturnType<typeof getSessionAuthorization>>;
   try {
-    user = await UserService.findById(userId);
+    authorization = await getSessionAuthorization(userId);
   } catch {
     // Fail closed if the authorization re-check cannot reach the database.
     sockets.forEach((socket) => socket.disconnect(true));
     return;
   }
 
-  let accessRevoked = !user || user.emailVerified === false;
-  if (!accessRevoked) {
-    try {
-      accessRevoked = await isUserCurrentlyBanned(user);
-    } catch {
-      sockets.forEach((socket) => socket.disconnect(true));
-      return;
-    }
-  }
-  if (accessRevoked) {
+  const { account: user, ban } = authorization;
+  if (!user || !user.emailVerified || ban) {
     sockets.forEach((socket) => {
       socket.emit("userForcedLogout", { userId });
       socket.disconnect(true);
@@ -1067,6 +1061,11 @@ async function refreshUserSocketAuthorization(userId: string): Promise<void> {
 
   const adminRole = user.role === "admin" || user.role === "owner";
   for (const socket of sockets) {
+    if (socket.data.sessionVersion !== user.sessionVersion) {
+      socket.emit("userForcedLogout", { userId });
+      socket.disconnect(true);
+      continue;
+    }
     socket.data.userEmail = user.email;
     socket.data.role = user.role;
     socket.data.studentGroup = user.studentGroup;
@@ -1093,10 +1092,11 @@ io.use(async (socket, next) => {
       (socket.handshake.auth?.token as string | undefined) || cookieToken;
     if (!handshakeToken) return next(new Error("Authentication required"));
 
-    const decoded = jwt.verify(handshakeToken, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; sessionVersion?: number };
-    if (await isRevokedToken(handshakeToken)) return next(new Error("Session revoked"));
-    const user = await getAuthenticatedUser(decoded.userId);
-    if (!user || user.emailVerified === false || (decoded.sessionVersion ?? 0) !== (user.sessionVersion ?? 0) || await isUserCurrentlyBanned(user)) {
+    const decoded = jwt.verify(handshakeToken, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; sessionVersion?: number; scope?: string };
+    if (decoded.scope === PDF_DOWNLOAD_SCOPE) return next(new Error("Invalid session"));
+    const { account: user, revokedUntil, ban } = await getSessionAuthorization(decoded.userId, handshakeToken);
+    if (revokedUntil) return next(new Error("Session revoked"));
+    if (!user || !user.emailVerified || (decoded.sessionVersion ?? 0) !== user.sessionVersion || ban) {
       return next(new Error("Invalid session"));
     }
 
@@ -1104,6 +1104,8 @@ io.use(async (socket, next) => {
     socket.data.userEmail = user.email;
     socket.data.studentGroup = user.studentGroup;
     socket.data.role = user.role;
+    socket.data.sessionVersion = user.sessionVersion;
+    socket.data.sessionKey = getRevokedSessionKey(handshakeToken);
     socket.data.verified = true;
     socket.join("authenticated");
     socket.join("user-" + user.id);
@@ -1520,7 +1522,7 @@ async function writeOAuthStoreValue(key: string, value: unknown): Promise<void> 
 }
 
 async function readOAuthStoreValue<T>(key: string): Promise<T | null> {
-  const row = await getPrisma().systemSetting.findUnique({ where: { key } });
+  const row = await getPrisma().systemSetting.findUnique({ where: { key }, select: { value: true } });
   if (!row || typeof row.value !== "string") return null;
   try {
     return JSON.parse(row.value) as T;
@@ -1616,13 +1618,22 @@ async function claimGoogleOAuthSessionForExchange(
 
 async function cleanupOAuthStore(): Promise<void> {
   try {
+    const now = Date.now();
     await getPrisma().systemSetting.deleteMany({
       where: {
-        updatedAt: { lt: new Date(Date.now() - OAUTH_STORE_RETENTION_MS) },
         OR: [
-          { key: { startsWith: OAUTH_STATE_KEY_PREFIX } },
-          { key: { startsWith: OAUTH_SESSION_KEY_PREFIX } },
-          { key: { startsWith: "__revoked_session__:" } },
+          {
+            updatedAt: { lt: new Date(now - OAUTH_STORE_RETENTION_MS) },
+            OR: [
+              { key: { startsWith: OAUTH_STATE_KEY_PREFIX } },
+              { key: { startsWith: OAUTH_SESSION_KEY_PREFIX } },
+            ],
+          },
+          {
+            key: { startsWith: REVOKED_SESSION_KEY_PREFIX },
+            // A revoked token can have up to its full original lifetime left.
+            updatedAt: { lt: new Date(now - SESSION_LIFETIME_SECONDS * 1000) },
+          },
         ],
       },
     });
@@ -1675,36 +1686,29 @@ async function revokeToken(rawToken: string): Promise<void> {
   if (!rawToken) return;
   let expMs = 0;
   try {
-    const decoded = jwt.decode(rawToken) as { exp?: number } | null;
-    if (decoded && typeof decoded.exp === "number") expMs = decoded.exp * 1000;
+    const decoded = jwt.verify(rawToken, JWT_SECRET, { algorithms: ["HS256"] }) as { exp?: number; scope?: string };
+    if (decoded.scope !== PDF_DOWNLOAD_SCOPE && typeof decoded.exp === "number") expMs = decoded.exp * 1000;
   } catch { /* ignore malformed tokens */ }
   if (expMs <= Date.now()) return;
   const hash = getRevokedSessionKey(rawToken);
   revokedTokens.set(hash, expMs);
+  for (const socket of io.sockets.sockets.values()) {
+    if (socket.data.sessionKey === hash) socket.disconnect(true);
+  }
   await writeOAuthStoreValue(hash, { expiresAt: expMs });
 }
-async function isRevokedToken(rawToken: string): Promise<boolean> {
-  if (!rawToken) return false;
-  const hash = getRevokedSessionKey(rawToken);
-  const localExpiry = revokedTokens.get(hash);
-  if (localExpiry !== undefined) {
-    if (localExpiry > Date.now()) return true;
-    revokedTokens.delete(hash);
-  }
-  try {
-    const record = await readOAuthStoreValue<{ expiresAt?: unknown }>(hash);
-    if (isRevocationActive(record)) {
-      revokedTokens.set(hash, record!.expiresAt as number);
-      return true;
+async function getSessionAuthorization(userId: string, rawToken?: string) {
+  const key = rawToken ? getRevokedSessionKey(rawToken) : null;
+  if (key) {
+    const localExpiry = revokedTokens.get(key);
+    if (localExpiry && localExpiry > Date.now()) {
+      return { revokedUntil: localExpiry, account: null, ban: null };
     }
-    if (record) {
-      await getPrisma().systemSetting.deleteMany({ where: { key: hash } });
-    }
-  } catch {
-    // The existing local cache remains authoritative during a shared-store
-    // outage; protected routes still perform their normal DB user check.
+    if (localExpiry !== undefined) revokedTokens.delete(key);
   }
-  return false;
+  const result = await readSessionAuthorization(getPrisma(), userId, key);
+  if (key && result.revokedUntil) revokedTokens.set(key, result.revokedUntil);
+  return result;
 }
 const _revokedCleanup = setInterval(() => {
   const now = Date.now();
@@ -2336,6 +2340,10 @@ async function initializeSystem() {
 
 // Health check
 app.get("/api/health", (req, res) => {
+  const revision = process.env.RENDER_GIT_COMMIT;
+  if (revision && /^[a-f0-9]{40}$/i.test(revision)) {
+    res.setHeader("X-Deploy-Commit", revision);
+  }
   res.json({ status: "ok", time: new Date().toISOString() });
 });
 
@@ -3216,7 +3224,10 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
     
     // Keep these administrative reads sequential so a rare content deletion
     // never opens multiple Supabase session-pool connections at once.
-    const materials = await prismaClient.material.findMany({ where: { lectureId } });
+    const materials = await prismaClient.material.findMany({
+      where: { lectureId },
+      select: { fileUrlOrLink: true, storagePath: true },
+    });
     
     for (const mat of materials) {
       if (mat.fileUrlOrLink && mat.fileUrlOrLink.startsWith("/uploads/materials/")) {
@@ -3287,7 +3298,8 @@ app.delete("/api/materials/:id", requireAdmin, catchAsync(async (req, res) => {
     const prismaClient = getPrisma();
     
     const mat = await prismaClient.material.findUnique({
-      where: { id: materialId }
+      where: { id: materialId },
+      select: { fileUrlOrLink: true, storagePath: true },
     });
     
     if (mat) {
@@ -3302,7 +3314,7 @@ app.delete("/api/materials/:id", requireAdmin, catchAsync(async (req, res) => {
         }
       }
       
-      await prismaClient.material.delete({ where: { id: materialId } });
+      await prismaClient.material.delete({ where: { id: materialId }, select: { id: true } });
 
       if (mat.storagePath) {
         try { await deleteSupabaseStorageObject(mat.storagePath); } catch (e: any) {
@@ -4907,26 +4919,19 @@ app.get("/api/materials/pdf/:id", requirePdfUser, pdfLimiter, catchAsync(async (
       }
     }
 
-    const prismaClient = getPrisma();
-    const material = await prismaClient.material.findUnique({
-      where: { id: idToFind },
-      select: { fileData: true, storagePath: true, fileUrlOrLink: true, title: true, type: true, createdAt: true }
+    const pdf = await readLegacyPdf(getPrisma(), idToFind, {
+      ifNoneMatch: req.headers['if-none-match'],
+      range: req.headers.range,
+      headOnly: req.method === "HEAD",
     });
 
-    if (!material) {
+    if (pdf.kind === "notFound") {
       return res.status(404).send("PDF not found.");
     }
 
-    if (!['PDF', 'NOTE'].includes(String(material.type || '').toUpperCase())) {
-      return res.status(404).send("PDF not found.");
-    }
-
-    // New PDFs/Notes live in the private Supabase Storage bucket. The app still
-    // opens this authenticated API route; only after authorization succeeds do
-    // we mint a very short-lived Storage URL and redirect the PDF viewer to it.
-    if (!material.fileData && material.storagePath) {
+    if (pdf.kind === "r2") {
       try {
-        const signedUrl = await createSupabaseSignedUrl(material.storagePath, 300);
+        const signedUrl = await createSupabaseSignedUrl(pdf.storagePath, 300);
         res.setHeader("Cache-Control", "private, no-store");
         return res.redirect(302, signedUrl);
       } catch (storageError: any) {
@@ -4937,9 +4942,9 @@ app.get("/api/materials/pdf/:id", requirePdfUser, pdfLimiter, catchAsync(async (
 
     // Backward compatibility for legacy local files created before durable
     // database/Storage persistence was introduced.
-    if (!material.fileData) {
-      if (material.fileUrlOrLink && material.fileUrlOrLink !== `/api/materials/pdf/${idToFind}`) {
-        let redirectTarget = material.fileUrlOrLink;
+    if (pdf.kind === "local") {
+      if (pdf.url && pdf.url !== `/api/materials/pdf/${idToFind}`) {
+        let redirectTarget = pdf.url;
         try {
           const parsed = new URL(redirectTarget, `${req.protocol}://${req.get("host")}`);
           const requestOrigin = `${req.protocol}://${req.get("host")}`;
@@ -4958,67 +4963,34 @@ app.get("/api/materials/pdf/:id", requirePdfUser, pdfLimiter, catchAsync(async (
       return res.status(404).send("PDF file data unavailable.");
     }
 
-    const fileData = material.fileData;
-    if (fileData.length < 5 || fileData.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    if (pdf.kind === "invalidPdf") {
       return res.status(415).send("Stored material is not a PDF.");
     }
-    const total = fileData.length;
 
     // Files are authenticated resources; shared/public caching could bypass a
     // later authorization check for a different account.
-    const etag = `W/"${total}-${material.createdAt?.getTime() || 0}"`;
-    res.setHeader('ETag', etag);
+    res.setHeader('ETag', pdf.etag);
     res.setHeader('Cache-Control', 'private, no-store');
 
-    if (req.headers['if-none-match'] === etag) {
+    if (pdf.kind === "notModified") {
       return res.status(304).end();
     }
 
     res.setHeader('Content-Type', 'application/pdf');
-    const safeFilename = String(material.title || "document").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120) || "document";
+    const safeFilename = String(pdf.title || "document").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120) || "document";
     res.setHeader('Content-Disposition', `inline; filename="${safeFilename}.pdf"`);
     res.setHeader('Accept-Ranges', 'bytes');
 
-    const range = req.headers.range;
-    if (range) {
-      const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-      if (!match || (match[1] === "" && match[2] === "")) {
-        res.setHeader("Content-Range", `bytes */${total}`);
-        return res.status(416).end();
-      }
-
-      let start: number;
-      let end: number;
-      if (match[1] === "") {
-        const suffixLength = Number(match[2]);
-        if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
-          res.setHeader("Content-Range", `bytes */${total}`);
-          return res.status(416).end();
-        }
-        start = Math.max(total - suffixLength, 0);
-        end = total - 1;
-      } else {
-        start = Number(match[1]);
-        end = match[2] === "" ? total - 1 : Number(match[2]);
-        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= total || end < start) {
-          res.setHeader("Content-Range", `bytes */${total}`);
-          return res.status(416).end();
-        }
-        end = Math.min(end, total - 1);
-      }
-
-      const chunksize = (end - start) + 1;
-
-      res.status(206);
-      res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
-      res.setHeader('Content-Length', chunksize.toString());
-      // subarray is a zero-copy view of the already-fetched buffer — the range
-      // never creates a second full-size allocation in memory.
-      res.end(fileData.subarray(start, end + 1));
-    } else {
-      res.setHeader('Content-Length', total.toString());
-      res.end(fileData);
+    if (pdf.kind === "invalidRange") {
+      res.setHeader("Content-Range", `bytes */${pdf.total}`);
+      return res.status(416).end();
     }
+    if (pdf.range) {
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${pdf.range.start}-${pdf.range.end}/${pdf.total}`);
+    }
+    res.setHeader('Content-Length', pdf.length.toString());
+    return res.end(pdf.body);
   } catch (error) {
     console.error("Error serving PDF from DB:", error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     res.status(500).send("Internal Server Error");
@@ -5442,7 +5414,14 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
           },
           orderBy: { createdAt: "asc" },
         }) : Promise.resolve([]),
-        needsOfflineStudyData ? prismaClient.mcq.findMany({ take: 2000 }) : Promise.resolve([]),
+        needsOfflineStudyData ? prismaClient.mcq.findMany({
+          take: 2000,
+          select: {
+            id: true, question: true, optionA: true, optionB: true, optionC: true, optionD: true,
+            hint: true, explanation: true, sourceType: true, sourceRef: true, difficulty: true,
+            lectureId: true, createdAt: true,
+          },
+        }) : Promise.resolve([]),
         needsOfflineStudyData ? prismaClient.flashcard.findMany({ take: 2000 }) : Promise.resolve([]),
         needsSubjects ? prismaClient.material.findMany({
           take: 2000,
@@ -7927,14 +7906,14 @@ app.put("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res) =>
 
 // Helper to set secure httpOnly JWT cookie and return token
 function setCookieToken(res: any, userId: string, email: string, sessionVersion = 0): string {
-  const token = jwt.sign({ userId, email, sessionVersion }, JWT_SECRET, { algorithm: "HS256", expiresIn: "30d" });
+  const token = jwt.sign({ userId, email, sessionVersion }, JWT_SECRET, { algorithm: "HS256", expiresIn: SESSION_LIFETIME_SECONDS });
   const isProduction = process.env.NODE_ENV === "production";
   res.cookie("auth_token", token, {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? "none" : "lax",
     path: "/",         // Explicit path ensures clearCookie() always finds this cookie
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    maxAge: SESSION_LIFETIME_SECONDS * 1000,
   });
   return token;
 }
@@ -8194,23 +8173,6 @@ function oauthRedirectUri(req: express.Request, provider: string): string {
   });
 }
 
-async function isUserCurrentlyBanned(user: any): Promise<boolean> {
-  if (!user || String(user.accountStatus || "").toLowerCase() !== "banned") return false;
-
-  if (phase3UserReadCutoverEnabled()) {
-    const payload = await fetchPrivateReadJson<{ row: any | null }>(
-      "/internal/private-read/ban",
-      { userId: user.id },
-    );
-    const ban = payload?.row || null;
-    return !ban || ban.isPermanent === true || !ban.endTime || new Date(String(ban.endTime)) > new Date();
-  }
-
-  const client = getPrisma();
-  const ban = await client.userBan.findUnique({ where: { userId: user.id } });
-  return !ban || ban.isPermanent || !ban.endTime || ban.endTime > new Date();
-}
-
 // Never classify a temporary Supabase/Prisma outage as an invalid account.
 // Doing so makes the client clear a valid session and report "user not found".
 function isInfrastructureError(error: unknown): boolean {
@@ -8243,25 +8205,26 @@ function sendAuthFailure(
   return res.status(500).json({ error: "Authentication service error. Please try again." });
 }
 
-// Authentication checks are on the hot path for nearly every API request.
-// Keep a very short-lived per-user snapshot to avoid a Supabase round trip for
-// every parallel page request, while limiting the window for role/ban changes.
+// Reuse the existing short-lived profile snapshot. Authorization decisions
+// and security-sensitive fields come from the canonical read on this request.
 const authenticatedUserCache = new Map<string, { user: any; expiresAt: number }>();
 const AUTH_USER_CACHE_TTL_MS = 3_000;
 
-async function getAuthenticatedUser(userId: string): Promise<any> {
-  const cached = authenticatedUserCache.get(userId);
-  if (cached && cached.expiresAt > Date.now()) return cached.user;
-  authenticatedUserCache.delete(userId);
+async function getAuthenticatedUser(
+  account: NonNullable<Awaited<ReturnType<typeof getSessionAuthorization>>["account"]>,
+): Promise<any> {
+  const cached = authenticatedUserCache.get(account.id);
+  if (cached && cached.expiresAt > Date.now()) return { ...cached.user, ...account };
+  authenticatedUserCache.delete(account.id);
 
-  const user = await UserService.findById(userId, { includePoints: false });
+  const user = await UserService.findById(account.id, { includePoints: false });
   if (user) {
-    authenticatedUserCache.set(userId, {
+    authenticatedUserCache.set(account.id, {
       user,
       expiresAt: Date.now() + AUTH_USER_CACHE_TTL_MS,
     });
   }
-  return user;
+  return user ? { ...user, ...account } : null;
 }
 
 function invalidateAuthenticatedUser(userId: string): void {
@@ -8276,28 +8239,35 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
       console.log("401 NO TOKEN"); return res.status(401).json({ error: "Authentication required." });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; email: string; iat?: number; sessionVersion?: number };
-    if (await isRevokedToken(token)) {
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; email: string; iat?: number; sessionVersion?: number; scope?: string };
+    if (decoded.scope === PDF_DOWNLOAD_SCOPE) {
+      return res.status(401).json({ error: "Access denied. Scoped PDF token cannot be used as an API session." });
+    }
+    const { account, revokedUntil, ban } = await getSessionAuthorization(decoded.userId, token);
+    if (revokedUntil) {
       console.log("401 REVOKED"); return res.status(401).json({ error: "Access denied. Session has been revoked." });
     }
-    const user = await getAuthenticatedUser(decoded.userId);
-    
-    if (!user) {
+    if (!account) {
       return res.status(401).json({ error: "Access denied. Administrative student account not found." });
     }
-    if ((decoded.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
-      console.log("401 INVALID SESSION", decoded.sessionVersion, user.sessionVersion); return res.status(401).json({ error: "Access denied. Session is no longer valid." });
+    if ((decoded.sessionVersion ?? 0) !== account.sessionVersion) {
+      console.log("401 INVALID SESSION", decoded.sessionVersion, account.sessionVersion); return res.status(401).json({ error: "Access denied. Session is no longer valid." });
     }
-    if (user.emailVerified === false) {
+    if (!account.emailVerified) {
       return res.status(403).json({ verificationRequired: true, error: "Please verify your institutional email before continuing." });
     }
 
-    if (await isUserCurrentlyBanned(user)) {
+    if (ban) {
       return res.status(403).json({ error: "Access denied. Your student account has been suspended/banned." });
     }
 
-    if (user.role !== "admin" && user.role !== "owner") {
+    if (account.role !== "admin" && account.role !== "owner") {
       return res.status(403).json({ error: "Access denied. Administrative role required." });
+    }
+
+    const user = await getAuthenticatedUser(account);
+    if (!user) {
+      return res.status(401).json({ error: "Access denied. Administrative student account not found." });
     }
 
     // Automatic sliding session: refresh if token is more than 24 hours old
@@ -8402,28 +8372,35 @@ async function requireOwner(req: express.Request, res: express.Response, next: e
       return res.status(401).json({ error: "Authentication required." });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; email: string; iat?: number; sessionVersion?: number };
-    if (await isRevokedToken(token)) {
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; email: string; iat?: number; sessionVersion?: number; scope?: string };
+    if (decoded.scope === PDF_DOWNLOAD_SCOPE) {
+      return res.status(401).json({ error: "Access denied. Scoped PDF token cannot be used as an API session." });
+    }
+    const { account, revokedUntil, ban } = await getSessionAuthorization(decoded.userId, token);
+    if (revokedUntil) {
       return res.status(401).json({ error: "Access denied. Session has been revoked." });
     }
-    const user = await getAuthenticatedUser(decoded.userId);
-    
-    if (!user) {
+    if (!account) {
       return res.status(401).json({ error: "Access denied. Academic owner account not found." });
     }
-    if ((decoded.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
+    if ((decoded.sessionVersion ?? 0) !== account.sessionVersion) {
       return res.status(401).json({ error: "Access denied. Session is no longer valid." });
     }
-    if (user.emailVerified === false) {
+    if (!account.emailVerified) {
       return res.status(403).json({ verificationRequired: true, error: "Please verify your institutional email before continuing." });
     }
 
-    if (await isUserCurrentlyBanned(user)) {
+    if (ban) {
       return res.status(403).json({ error: "Access denied. Your student account has been suspended/banned." });
     }
 
-    if (user.role !== "owner") {
+    if (account.role !== "owner") {
       return res.status(403).json({ error: "Access denied. Platform Owner role required." });
+    }
+
+    const user = await getAuthenticatedUser(account);
+    if (!user) {
+      return res.status(401).json({ error: "Access denied. Academic owner account not found." });
     }
 
     // Automatic sliding session: refresh if token is more than 24 hours old
@@ -8473,7 +8450,7 @@ function requirePdfUser(req: express.Request, res: express.Response, next: expre
     // and must never become a general-purpose API bearer token.
     void (async () => {
       try {
-        const user = await getAuthenticatedUser(claims.userId);
+        const { account: user, ban } = await getSessionAuthorization(claims.userId);
         if (!user) {
           console.log("401 PDF TOKEN USER NOT FOUND");
           return res.status(401).json({ error: "Access denied. Student account not found." });
@@ -8487,7 +8464,7 @@ function requirePdfUser(req: express.Request, res: express.Response, next: expre
             error: "Please verify your institutional email before continuing.",
           });
         }
-        if (await isUserCurrentlyBanned(user)) {
+        if (ban) {
           return res.status(403).json({ error: "Access denied. Your student account has been suspended." });
         }
 
@@ -8527,31 +8504,33 @@ async function requireUser(req: express.Request, res: express.Response, next: ex
     if (decoded.scope === PDF_DOWNLOAD_SCOPE) {
       console.log("401 SCOPED PDF"); return res.status(401).json({ error: "Access denied. Scoped PDF token cannot be used as an API session." });
     }
-    if (await isRevokedToken(token)) {
+    const { account, revokedUntil, ban } = await getSessionAuthorization(decoded.userId, token);
+    if (revokedUntil) {
       return res.status(401).json({ error: "Access denied. Session has been revoked." });
     }
-    const user = await getAuthenticatedUser(decoded.userId);
-    
-    if (!user) {
+    if (!account) {
       return res.status(401).json({ error: "Access denied. Student account not found." });
     }
-    if ((decoded.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
+    if ((decoded.sessionVersion ?? 0) !== account.sessionVersion) {
       return res.status(401).json({ error: "Access denied. Session is no longer valid." });
     }
-    if (user.emailVerified === false) {
+    if (!account.emailVerified) {
       return res.status(403).json({ verificationRequired: true, error: "Please verify your institutional email before continuing." });
     }
 
-    if (await isUserCurrentlyBanned(user)) {
-      const prismaClient = getPrisma();
-      const ban = await prismaClient.userBan.findUnique({ where: { userId: user.id } });
+    if (ban) {
       return res.status(403).json({
         banned: true,
         error: "Your account has been suspended.",
-        reason: ban?.reason || null,
-        isPermanent: ban ? ban.isPermanent : true,
-        endTime: ban?.endTime?.toISOString() || null,
+        reason: ban.reason,
+        isPermanent: ban.isPermanent,
+        endTime: ban.endTime?.toISOString() || null,
       });
+    }
+
+    const user = await getAuthenticatedUser(account);
+    if (!user) {
+      return res.status(401).json({ error: "Access denied. Student account not found." });
     }
 
     // Automatic sliding session: refresh if token is more than 24 hours old
@@ -8902,32 +8881,33 @@ app.get("/api/auth/me", catchAsync(async (req, res) => {
     }
 
     failurePhase = "token_verification";
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; sessionVersion?: number };
-    failurePhase = "revocation_check";
-    if (await isRevokedToken(token)) {
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; sessionVersion?: number; scope?: string };
+    if (decoded.scope === PDF_DOWNLOAD_SCOPE) return res.status(401).json({ user: null });
+    failurePhase = "session_authorization";
+    const { account, revokedUntil, ban } = await getSessionAuthorization(decoded.userId, token);
+    if (revokedUntil || !account || (decoded.sessionVersion ?? 0) !== account.sessionVersion) {
       return res.status(401).json({ user: null });
     }
-    failurePhase = "user_lookup";
-    const user = await getAuthenticatedUser(decoded.userId);
-
-    if (!user || (decoded.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
-      return res.status(401).json({ user: null });
-    }
-    failurePhase = "account_status";
-    if (user.emailVerified === false || await isUserCurrentlyBanned(user)) {
+    if (!account.emailVerified || ban) {
       return res.json({ user: null });
     }
+    failurePhase = "user_lookup";
+    const user = await getAuthenticatedUser(account);
+    if (!user) return res.status(401).json({ user: null });
 
     failurePhase = "profile_hydration";
     const fullData = await UserService.getFullUserData(user.id, user);
-    // Check if this is an Apple user who hasn't selected their profile email yet
+    // Once a profile email is selected, the Apple identity cannot affect this
+    // response. Keep the canonical existence check for incomplete profiles.
     failurePhase = "oauth_identity";
-    const appleIdentity = phase3UserReadCutoverEnabled()
-      ? user.hasAppleIdentity === true
-      : !!(await getPrisma().oAuthIdentity.findFirst({
-          where: { provider: "apple", userId: user.id },
-        }));
-    const needsEmailSelection = !!appleIdentity && !user.profileEmail;
+    const needsEmailSelection = !user.profileEmail && (
+      phase3UserReadCutoverEnabled()
+        ? user.hasAppleIdentity === true
+        : !!(await getPrisma().oAuthIdentity.findFirst({
+            where: { provider: "apple", userId: user.id },
+            select: { id: true },
+          }))
+    );
     // Return the token in the response body so the frontend can persist it
     // for Bearer auth (bypasses ITP cookie partitioning on iOS Safari).
     return res.json({ ...fullData, token, needsEmailSelection });
@@ -10603,14 +10583,8 @@ app.post("/api/auth/login", catchAsync(async (req, res) => {
       });
     }
 
-    const existing = await UserService.findByEmail(cleanEmail);
-
-    // Always return the same error for missing user or wrong password
-    // to prevent email enumeration attacks
-    if (!existing) {
-      return res.status(401).json({ error: "Invalid email or password." });
-    }
-    // Validate credentials securely using bcryptjs
+    // The credential check already loads the account and rejects both unknown
+    // emails and wrong passwords through the same public response.
     try {
       const validatedUser = await AuthService.authenticateUser(cleanEmail, password);
       if (validatedUser.emailVerified === false) {
@@ -10622,7 +10596,10 @@ app.post("/api/auth/login", catchAsync(async (req, res) => {
       // Block banned users before issuing any token
       {
         const prismaClient = getPrisma();
-        const activeBan = await prismaClient.userBan.findUnique({ where: { userId: validatedUser.id } });
+        const activeBan = await prismaClient.userBan.findUnique({
+          where: { userId: validatedUser.id },
+          select: { reason: true, isPermanent: true, endTime: true },
+        });
         if (activeBan) {
           const isExpired = !activeBan.isPermanent && activeBan.endTime && activeBan.endTime <= new Date();
           if (!isExpired) {
@@ -11004,6 +10981,7 @@ app.post("/api/auth/reset-password", catchAsync(async (req, res) => {
     if (!ok) {
       return res.status(400).json({ error: GENERIC_FAIL });
     }
+    await refreshUserSocketAuthorization(user.id);
 
     return res.json({ success: true, message: "Your password has been successfully updated." });
   } catch (error: any) {
@@ -11782,7 +11760,7 @@ app.post("/api/progress/view", requireUser, catchAsync(async (req, res) => {
     }
 
     const client = getPrisma();
-    const materialExists = await client.material.findUnique({ where: { id: materialId } });
+    const materialExists = await client.material.findUnique({ where: { id: materialId }, select: { id: true } });
     if (!materialExists) {
       return res.json({ success: true, progress: { userId, materialId, hasViewed: true, isCompleted: false } });
     }
@@ -11823,7 +11801,7 @@ app.post("/api/progress/complete", requireUser, catchAsync(async (req, res) => {
     }
 
     const client = getPrisma();
-    const materialExists = await client.material.findUnique({ where: { id: materialId } });
+    const materialExists = await client.material.findUnique({ where: { id: materialId }, select: { id: true } });
     if (!materialExists) {
       return res.json({ success: true, progress: { userId, materialId, hasViewed: true, isCompleted: true } });
     }
