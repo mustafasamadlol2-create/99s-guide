@@ -23,6 +23,7 @@ import type {
 } from "./types";
 import { LeaderboardView } from "./LeaderboardView";
 import { StudyStreakCard } from "./StudyStreakCard";
+import { writeStudyStreakCache } from "./studyStreakCache";
 import { GamificationFeatureState } from "./GamificationFeatureState";
 import { GAMIFICATION_LEVEL_COUNT, getAllLevelPresentations, getLevelPresentation } from "./levelPresentation";
 import "./gamification.css";
@@ -529,13 +530,15 @@ export function GamificationFrontend({
   const loadStudyStreak = useCallback(async () => {
     if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
     const account = currentAccountId.current;
+    if (!account) return;
     const requestId = ++studyStreakGeneration.current;
     setStudyStreakLoading(true);
     setStudyStreakError(false);
     try {
-      const result = await gamificationApi.studyStreak();
+      const result = await gamificationApi.studyStreak(account);
       if (studyStreakGeneration.current === requestId && currentAccountId.current === account) {
         setStudyStreak(result);
+        writeStudyStreakCache(account, result.currentStreakDays);
       }
     } catch {
       if (studyStreakGeneration.current === requestId && currentAccountId.current === account) {
@@ -745,6 +748,9 @@ export function GamificationFrontend({
     const onInvalidated = (event: Event) => {
       const detail = (event as CustomEvent<GamificationInvalidationDetail>).detail;
       if (!detail?.resources?.length) return;
+      if (detail.resources.includes("studyStreak") && (currentTab.current === "overview" || studyStreak !== null)) {
+        void loadStudyStreak();
+      }
       if (detail.resources.includes("leaderboard")) {
         if (leaderboardWarmTimer.current) clearTimeout(leaderboardWarmTimer.current);
         leaderboardWarmTimer.current = setTimeout(() => {
@@ -752,12 +758,11 @@ export function GamificationFrontend({
           void warmLeaderboardScopes();
         }, 350);
       }
-      queueResourceRefresh(detail.resources);
-      if (currentTab.current === "overview" || studyStreak !== null) void loadStudyStreak();
+      const resources = detail.resources.filter((resource) => resource !== "studyStreak");
+      if (resources.length > 0) queueResourceRefresh(resources);
     };
     const onReconnect = () => {
       void warmLeaderboardScopes();
-      if (currentTab.current === "overview" || studyStreak !== null) void loadStudyStreak();
       queueResourceRefresh(resourcesForGamificationReconnect(currentTab.current, {
         leaderboard: currentLeaderboard.current !== null,
         rank: currentOwnRank.current !== null || currentOverviewRank.current !== null,
@@ -855,23 +860,12 @@ export function GamificationFrontend({
   ]);
   useEffect(() => {
     if (featureFlagsStatus !== "ready" || !gamificationEnabled || tab !== "overview") return;
-    if (!studyStreak && !studyStreakLoading && !studyStreakError) void loadStudyStreak();
 
-    const handleStudyStreakVisibility = () => {
-      if (document.visibilityState === "visible") void loadStudyStreak();
-    };
-    const handleStudyStreakFocus = () => void loadStudyStreak();
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadStudyStreak();
     }, 60_000);
-    document.addEventListener("visibilitychange", handleStudyStreakVisibility);
-    window.addEventListener("focus", handleStudyStreakFocus);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleStudyStreakVisibility);
-      window.removeEventListener("focus", handleStudyStreakFocus);
-    };
-  }, [featureFlagsStatus, gamificationEnabled, loadStudyStreak, studyStreak, studyStreakError, studyStreakLoading, tab]);
+    return () => window.clearInterval(interval);
+  }, [featureFlagsStatus, gamificationEnabled, loadStudyStreak, tab]);
 
   useEffect(() => {
     if (navigationRequest > 0) setTab("leaderboard");

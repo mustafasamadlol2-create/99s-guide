@@ -1,3 +1,4 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { getBaghdadMetricDate, metricDateAsUtcDate } from "../study-events/date.js";
 
@@ -65,15 +66,12 @@ type MetricRow = {
   lectureCompletions: number;
 };
 
-type ProgressEventRow = { occurredAt: Date; receivedAt: Date; eventType?: string };
-type GroupFocusRow = { verifiedFocusSeconds: number; run: { runtimeEndedAt: Date | null } };
-type PointsActivityRow = { effectiveAt: Date; createdAt: Date; amount: number; sourceType: string };
+type ProgressDay = { date: string; progressEvents: bigint };
+type GroupFocusDay = { date: string; verifiedFocusSeconds: bigint };
+type ActivityDay = { date: string };
 
-export type StudyStreakDatabase = {
+export type StudyStreakDatabase = Pick<PrismaClient, "$queryRaw"> & {
   studyDailyMetric: { findMany(args: unknown): Promise<MetricRow[]> };
-  studyEvent: { findMany(args: unknown): Promise<ProgressEventRow[]> };
-  groupFocusParticipantSummary: { findMany(args: unknown): Promise<GroupFocusRow[]> };
-  studyPointsLedgerEntry: { findMany(args: unknown): Promise<PointsActivityRow[]> };
 };
 
 function shiftDateKey(dateKey: string, deltaDays: number): string {
@@ -160,6 +158,10 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
       const metricStart = metricDateAsUtcDate(rangeStart);
       const metricEnd = metricDateAsUtcDate(today);
       const instantStart = baghdadDayStart(rangeStart);
+      // Prisma's timestamp columns store UTC values without a timezone. Bind
+      // UTC bounds explicitly to keep the filters independent of session time.
+      const fromUtc = Prisma.sql`(${instantStart}::timestamptz AT TIME ZONE 'UTC')`;
+      const throughUtc = Prisma.sql`(${asOf}::timestamptz AT TIME ZONE 'UTC')`;
 
       // IMPORTANT: a study streak is about the day the server accepted the study
       // action, not necessarily the historical/economic effectiveAt carried by a
@@ -184,34 +186,34 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
           },
           orderBy: { metricDate: "asc" },
         }),
-        database.studyEvent.findMany({
-          where: {
-            userId,
-            eventType: { in: [...ACTIVE_STUDY_EVENT_TYPES] },
-            evidenceClass: { in: [...ACTIVE_EVIDENCE_CLASSES] },
-            receivedAt: { gte: instantStart, lte: asOf },
-          },
-          select: { occurredAt: true, receivedAt: true, eventType: true },
-          orderBy: { receivedAt: "asc" },
-        }),
-        database.groupFocusParticipantSummary.findMany({
-          where: {
-            userId,
-            verifiedFocusSeconds: { gt: 0 },
-            run: { runtimeEndedAt: { gte: instantStart, lte: asOf } },
-          },
-          select: { verifiedFocusSeconds: true, run: { select: { runtimeEndedAt: true } } },
-        }),
-        database.studyPointsLedgerEntry.findMany({
-          where: {
-            userId,
-            amount: { gt: 0 },
-            sourceType: { in: [...ACTIVE_STUDY_POINT_SOURCE_TYPES] },
-            createdAt: { gte: instantStart, lte: asOf },
-          },
-          select: { effectiveAt: true, createdAt: true, amount: true, sourceType: true },
-          orderBy: { createdAt: "asc" },
-        }),
+        database.$queryRaw<ProgressDay[]>`
+          SELECT to_char(("receivedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${STUDY_STREAK_TIME_ZONE}, 'YYYY-MM-DD') AS "date",
+                 COUNT(*) FILTER (WHERE "eventType" = 'lecture_progress_recorded') AS "progressEvents"
+          FROM "StudyEvent"
+          WHERE "userId" = ${userId}
+            AND "eventType" IN (${Prisma.join(ACTIVE_STUDY_EVENT_TYPES)})
+            AND "evidenceClass" IN (${Prisma.join(ACTIVE_EVIDENCE_CLASSES)})
+            AND "receivedAt" BETWEEN ${fromUtc} AND ${throughUtc}
+          GROUP BY 1
+        `,
+        database.$queryRaw<GroupFocusDay[]>`
+          SELECT to_char((runs."runtimeEndedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${STUDY_STREAK_TIME_ZONE}, 'YYYY-MM-DD') AS "date",
+                 SUM(participant."verifiedFocusSeconds") AS "verifiedFocusSeconds"
+          FROM "GroupFocusParticipantSummary" AS participant
+          JOIN "GroupFocusRun" AS runs ON runs."id" = participant."runId"
+          WHERE participant."userId" = ${userId}
+            AND participant."verifiedFocusSeconds" > 0
+            AND runs."runtimeEndedAt" BETWEEN ${fromUtc} AND ${throughUtc}
+          GROUP BY 1
+        `,
+        database.$queryRaw<ActivityDay[]>`
+          SELECT DISTINCT to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${STUDY_STREAK_TIME_ZONE}, 'YYYY-MM-DD') AS "date"
+          FROM "StudyPointsLedgerEntry"
+          WHERE "userId" = ${userId}
+            AND "amount" > 0
+            AND "sourceType" IN (${Prisma.join(ACTIVE_STUDY_POINT_SOURCE_TYPES)})
+            AND "createdAt" BETWEEN ${fromUtc} AND ${throughUtc}
+        `,
       ] as const);
 
       const [metricRead, eventRead, groupRead, pointRead] = reads;
@@ -267,16 +269,10 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
 
       const canonicalActivityDates = new Set<string>();
 
-      for (const row of verifiedEvents) {
-        // receivedAt is server-owned and represents when the verified study
-        // action was accepted. occurredAt remains useful analytical metadata,
-        // but must not make a just-completed action appear on an older day.
-        const date = getBaghdadMetricDate(row.receivedAt);
+      for (const { date, progressEvents } of verifiedEvents) {
         if (date < rangeStart || date > today) continue;
         canonicalActivityDates.add(date);
-        if ((row.eventType ?? "") === "lecture_progress_recorded") {
-          ensure(date).progressEvents += 1;
-        }
+        ensure(date).progressEvents += Number(progressEvents);
       }
 
       // Points V2 is canonical, append-only proof that a server-verified study
@@ -284,18 +280,13 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
       // day. effectiveAt is intentionally allowed to be historical for replay /
       // legacy-completion correctness and therefore is not a valid "studied today"
       // timestamp.
-      for (const row of pointActivity) {
-        if (safeCounter(row.amount) <= 0) continue;
-        const date = getBaghdadMetricDate(row.createdAt);
+      for (const { date } of pointActivity) {
         if (date >= rangeStart && date <= today) canonicalActivityDates.add(date);
       }
 
-      for (const row of groupFocus) {
-        const endedAt = row.run.runtimeEndedAt;
-        if (!endedAt) continue;
-        const date = getBaghdadMetricDate(endedAt);
+      for (const { date, verifiedFocusSeconds } of groupFocus) {
         if (date >= rangeStart && date <= today) {
-          ensure(date).groupFocusSeconds += safeCounter(row.verifiedFocusSeconds);
+          ensure(date).groupFocusSeconds += Number(verifiedFocusSeconds);
         }
       }
 

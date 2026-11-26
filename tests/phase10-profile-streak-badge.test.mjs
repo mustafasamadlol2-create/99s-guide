@@ -26,7 +26,7 @@ test("profile consumes last-known cache synchronously and live cache updates", (
   assert.match(profile, /STUDY_STREAK_CACHE_EVENT/);
   assert.match(profile, /CustomEvent<StudyStreakCacheEntry>/);
   assert.match(cache, /window\.localStorage\.setItem/);
-  assert.match(cache, /gamificationApi\.studyStreak\(\)/);
+  assert.match(cache, /gamificationApi\.studyStreak\(accountId\)/);
 });
 
 test("profile streak remains secondary and keeps the last-known value on transient failure", () => {

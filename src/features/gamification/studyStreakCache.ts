@@ -1,3 +1,4 @@
+import { getActiveAccountId } from "../../core/storage/accountData";
 import { gamificationApi } from "./api";
 
 export const STUDY_STREAK_CACHE_EVENT = "study-streak-cache-updated";
@@ -15,7 +16,7 @@ function normalizeDays(value: unknown): number | null {
 }
 
 export function readStudyStreakCache(accountId: string): StudyStreakCacheEntry | null {
-  if (typeof window === "undefined" || !accountId) return null;
+  if (typeof window === "undefined" || !accountId || getActiveAccountId() !== accountId) return null;
   try {
     const raw = window.localStorage.getItem(`${STUDY_STREAK_CACHE_PREFIX}${accountId}`);
     if (!raw) return null;
@@ -39,7 +40,7 @@ export function writeStudyStreakCache(accountId: string, currentStreakDays: numb
     updatedAt: Date.now(),
   };
 
-  if (typeof window !== "undefined" && accountId) {
+  if (typeof window !== "undefined" && accountId && getActiveAccountId() === accountId) {
     try {
       window.localStorage.setItem(
         `${STUDY_STREAK_CACHE_PREFIX}${accountId}`,
@@ -63,9 +64,10 @@ export function writeStudyStreakCache(accountId: string, currentStreakDays: numb
  * delayed badge appearing after the Profile screen is already visible.
  */
 export async function warmStudyStreakCache(accountId: string): Promise<StudyStreakCacheEntry | null> {
-  if (!accountId) return null;
+  if (!accountId || getActiveAccountId() !== accountId) return null;
   try {
-    const result = await gamificationApi.studyStreak();
+    const result = await gamificationApi.studyStreak(accountId);
+    if (getActiveAccountId() !== accountId) return null;
     return writeStudyStreakCache(accountId, result.currentStreakDays);
   } catch {
     return readStudyStreakCache(accountId);

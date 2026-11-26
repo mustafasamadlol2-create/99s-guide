@@ -9,8 +9,8 @@ const engagement = readFileSync("src/features/gamification/GamificationFrontend.
 
 test("streak day uses canonical verified events and positive Points V2 activity, not only the daily projection", () => {
   assert.match(service, /ACTIVE_STUDY_EVENT_TYPES/);
-  assert.match(service, /studyPointsLedgerEntry\.findMany/);
-  assert.match(service, /amount:\s*\{\s*gt:\s*0\s*\}/);
+  assert.match(service, /SELECT DISTINCT[^;]+FROM "StudyPointsLedgerEntry"/);
+  assert.match(service, /AND "amount" > 0\s+AND "sourceType" IN/);
   assert.match(service, /canonicalActivityDates/);
   assert.match(service, /activityRuleVersion:\s*"study-day-v3"/);
 });

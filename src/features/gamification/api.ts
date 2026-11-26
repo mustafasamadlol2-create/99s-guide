@@ -1,4 +1,6 @@
 import { apiClient } from "../../core/api/apiClient";
+import { getActiveAccountGeneration, getActiveAccountId } from "../../core/storage/accountData";
+import { getBaghdadDateParts } from "../../core/utils/timezone";
 import {
   readGamificationResource,
   type GamificationSyncResource,
@@ -83,16 +85,30 @@ export const gamificationApi = {
       userId,
       `/api/users/${encodeURIComponent(userId)}/gamification`,
     ),
-  studyStreak: async () => {
-    const response = await apiClient("/api/me/study-streak", {
-      method: "GET",
-      bypassCache: true,
-      ttl: 0,
-      cache: "no-store",
-      silent: true,
-      timeoutMs: 10_000,
-      retries: 0,
+  studyStreak: async (accountId = getActiveAccountId()) => {
+    if (!accountId || accountId !== getActiveAccountId()) {
+      throw new DOMException("An active account is required.", "AbortError");
+    }
+    const generation = getActiveAccountGeneration();
+    const today = getBaghdadDateParts(new Date()).dateString;
+    return readGamificationResource("studyStreak", `${generation}:${today}`, async (requestKey) => {
+      const response = await apiClient("/api/me/study-streak", {
+        method: "GET",
+        bypassCache: true,
+        ttl: 0,
+        cache: "no-store",
+        silent: true,
+        timeoutMs: 10_000,
+        retries: 0,
+        requestKey,
+      });
+      return response.json() as Promise<StudyStreakSummary>;
+    }, {
+      accountId,
+      isCurrent: () => getActiveAccountGeneration() === generation,
+      // Reuse one response across immediate navigation and foreground events.
+      // Canonical activity invalidates it and the visible minute poll stays fresh.
+      cacheTtlMs: 15_000,
     });
-    return response.json() as Promise<StudyStreakSummary>;
   },
 };

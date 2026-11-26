@@ -17,7 +17,7 @@ import {
   warmStudyStreakCache,
   type StudyStreakCacheEntry,
 } from "../../gamification/studyStreakCache";
-import { GAMIFICATION_INVALIDATED_EVENT } from "../../gamification/realtime";
+import { GAMIFICATION_INVALIDATED_EVENT, type GamificationInvalidationDetail } from "../../gamification/realtime";
 import { gamificationApi } from "../../gamification/api";
 import type { LevelSummary } from "../../gamification/types";
 import { GAMIFICATION_LEVEL_COUNT, getLevelPresentation } from "../../gamification/levelPresentation";
@@ -267,11 +267,6 @@ export const ProfileView = function ProfileView({
    }
  }, []);
 
- const refreshProfileStreak = useCallback(async () => {
-   const entry = await warmStudyStreakCache(profileUserId);
-   if (entry) setProfileStreakDays(entry.currentStreakDays);
- }, [profileUserId]);
-
  // The app shell warms this cache immediately after authentication. Profile
  // consumes it synchronously, so the badge is already painted on first frame.
  // This local warm is a fallback for unusual navigation/startup paths.
@@ -280,8 +275,7 @@ export const ProfileView = function ProfileView({
    // between users without remounting this view.
    setProfileLevel(null);
    const cached = readStudyStreakCache(profileUserId);
-   if (cached) setProfileStreakDays(cached.currentStreakDays);
-   void refreshProfileStreak();
+   setProfileStreakDays(cached?.currentStreakDays ?? null);
    void refreshProfileLevel();
 
    const handleCacheUpdate = (event: Event) => {
@@ -289,28 +283,29 @@ export const ProfileView = function ProfileView({
      if (!detail || detail.accountId !== profileUserId) return;
      setProfileStreakDays(detail.currentStreakDays);
    };
-   const handleGamificationInvalidation = () => {
-     void refreshProfileStreak();
-     void refreshProfileLevel();
+   const handleGamificationInvalidation = (event: Event) => {
+     const detail = (event as CustomEvent<GamificationInvalidationDetail>).detail;
+     if (detail?.resources?.includes("summary") || detail?.resources?.includes("profile")) void refreshProfileLevel();
    };
    window.addEventListener(STUDY_STREAK_CACHE_EVENT, handleCacheUpdate);
    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, handleGamificationInvalidation);
+   void warmStudyStreakCache(profileUserId);
    return () => {
      window.removeEventListener(STUDY_STREAK_CACHE_EVENT, handleCacheUpdate);
      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, handleGamificationInvalidation);
    };
- }, [profileUserId, refreshProfileStreak, refreshProfileLevel]);
+ }, [profileUserId, refreshProfileLevel]);
 
  useEffect(() => {
    if (!isActive) return;
 
    const handleWindowFocus = () => {
-     void refreshProfileStreak();
+     void warmStudyStreakCache(profileUserId);
      void refreshProfileLevel();
    };
    const handleVisibilityChange = () => {
      if (document.visibilityState === "visible") {
-       void refreshProfileStreak();
+       void warmStudyStreakCache(profileUserId);
        void refreshProfileLevel();
      }
    };
@@ -321,7 +316,7 @@ export const ProfileView = function ProfileView({
      window.removeEventListener("focus", handleWindowFocus);
      document.removeEventListener("visibilitychange", handleVisibilityChange);
    };
- }, [isActive, refreshProfileStreak, refreshProfileLevel]);
+ }, [isActive, profileUserId, refreshProfileLevel]);
 
  // Keep the compact profile label tied to the user's Academic Group (A-E),
  // not the fixed Batch value. Normalize defensively in case persisted data

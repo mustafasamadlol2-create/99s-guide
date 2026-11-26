@@ -1,3 +1,5 @@
+import { getActiveAccountId } from "../../core/storage/accountData";
+
 export const GAMIFICATION_INVALIDATED_EVENT = "gamification-state-invalidated";
 export const GAMIFICATION_SOCKET_RECONNECTED_EVENT = "gamification-socket-reconnected";
 export const GAMIFICATION_UPDATE_EVENT = "gamification_updated";
@@ -10,6 +12,7 @@ export const GAMIFICATION_SYNC_RESOURCES = [
   "leaderboard",
   "rank",
   "profile",
+  "studyStreak",
 ] as const;
 
 export type GamificationSyncResource =
@@ -38,9 +41,9 @@ type OptimisticStudyPointsEntry = {
 const optimisticStudyPoints = new Map<string, OptimisticStudyPointsEntry>();
 const OPTIMISTIC_STUDY_POINTS_TTL_MS = 30_000;
 
-function emitOptimisticStudyPointsChanged(): void {
+function emitOptimisticStudyPointsChanged(recheckStreak = false): void {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(GAMIFICATION_OPTIMISTIC_POINTS_EVENT));
+  window.dispatchEvent(new CustomEvent(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, { detail: { recheckStreak } }));
 }
 
 function pruneOptimisticStudyPoints(now = Date.now()): void {
@@ -64,7 +67,7 @@ export function settleOptimisticStudyPoints(token: string, awarded: number): voi
   if (!token) return;
   pruneOptimisticStudyPoints();
   if (!Number.isFinite(awarded) || awarded <= 0) {
-    if (optimisticStudyPoints.delete(token)) emitOptimisticStudyPointsChanged();
+    if (optimisticStudyPoints.delete(token)) emitOptimisticStudyPointsChanged(true);
     return;
   }
   optimisticStudyPoints.set(token, {
@@ -72,12 +75,12 @@ export function settleOptimisticStudyPoints(token: string, awarded: number): voi
     committed: true,
     createdAt: Date.now(),
   });
-  emitOptimisticStudyPointsChanged();
+  emitOptimisticStudyPointsChanged(true);
 }
 
 export function rollbackOptimisticStudyPoints(token: string): void {
   if (!token) return;
-  if (optimisticStudyPoints.delete(token)) emitOptimisticStudyPointsChanged();
+  if (optimisticStudyPoints.delete(token)) emitOptimisticStudyPointsChanged(true);
 }
 
 export function acknowledgeCommittedOptimisticStudyPoints(): void {
@@ -113,8 +116,22 @@ export function invalidateGamificationResources(
   resources: readonly GamificationSyncResource[],
 ): void {
   for (const resource of new Set(resources)) {
+    if (resource === "studyStreak") continue;
     const scope = `${accountScope}|${resource}`;
     readEpochs.set(scope, readEpoch(scope) + 1);
+  }
+  if (isStudyStreakInvalidation(resources)) invalidateStudyStreak(getActiveAccountId() ?? accountScope);
+}
+
+export function isStudyStreakInvalidation(resources: readonly GamificationSyncResource[]): boolean {
+  return resources.includes("summary") || resources.includes("studyStreak");
+}
+
+export function invalidateStudyStreak(accountId: string): void {
+  const scope = `${accountId}|studyStreak`;
+  readEpochs.set(scope, readEpoch(scope) + 1);
+  for (const key of readResults.keys()) {
+    if (key.startsWith(scope + "|")) readResults.delete(key);
   }
 }
 
@@ -126,10 +143,14 @@ export async function readGamificationResource<T>(
   resource: GamificationSyncResource,
   variant: string,
   load: GamificationReadLoader<T>,
-  options: { cacheTtlMs?: number } = {},
+  options: { cacheTtlMs?: number; accountId?: string; isCurrent?: () => boolean } = {},
 ): Promise<T> {
-  const scope = `${accountScope}|${resource}`;
+  const scope = `${options.accountId ?? accountScope}|${resource}`;
+  const assertCurrent = () => {
+    if (options.isCurrent?.() === false) throw new DOMException("The account changed during the read.", "AbortError");
+  };
   for (;;) {
+    assertCurrent();
     const epoch = readEpoch(scope);
     const flightKey = `${scope}|${variant}|${epoch}`;
     const cached = readResults.get(flightKey);
@@ -140,24 +161,19 @@ export async function readGamificationResource<T>(
     let flight = readFlights.get(flightKey) as Promise<T> | undefined;
     if (!flight) {
       const requestKey = `${flightKey}`;
-      const pending = Promise.resolve().then(() => load(requestKey));
-      const tracked = pending.finally(() => {
-        if (readFlights.get(flightKey) === tracked) {
-          readFlights.delete(flightKey);
-        }
+      const pending = Promise.resolve().then(() => {
+        assertCurrent();
+        return load(requestKey);
       });
-      readFlights.set(flightKey, tracked);
-      flight = tracked;
+      readFlights.set(flightKey, pending);
+      flight = pending;
     }
 
-    let result: T;
     try {
-      result = await flight;
-    } catch (error) {
+      const result = await flight;
+      assertCurrent();
       if (readEpoch(scope) !== epoch) continue;
-      throw error;
-    }
-    if (readEpoch(scope) === epoch) {
+
       const cacheTtlMs = Math.max(0, options.cacheTtlMs ?? 0);
       if (cacheTtlMs > 0) {
         readResults.set(flightKey, { expiresAt: Date.now() + cacheTtlMs, value: result });
@@ -168,6 +184,12 @@ export async function readGamificationResource<T>(
         }
       }
       return result;
+    } catch (error) {
+      assertCurrent();
+      if (readEpoch(scope) !== epoch) continue;
+      throw error;
+    } finally {
+      if (readFlights.get(flightKey) === flight) readFlights.delete(flightKey);
     }
   }
 }

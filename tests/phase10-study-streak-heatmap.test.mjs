@@ -19,7 +19,7 @@ const phase9Files = [
 test("Phase 10 uses verified study activity rather than app opening or login", () => {
   assert.match(service, /studyDailyMetric\.findMany/);
   assert.match(service, /lecture_progress_recorded/);
-  assert.match(service, /groupFocusParticipantSummary\.findMany/);
+  assert.match(service, /FROM "GroupFocusParticipantSummary".*JOIN "GroupFocusRun".*participant\."verifiedFocusSeconds" > 0/s);
   assert.doesNotMatch(service, /login|sign.?in|app_open|page_view/i);
   assert.match(card, /opening the app alone never counts/);
 });
@@ -47,7 +47,7 @@ test("the Study Streak endpoint is private, no-store and mounted under authentic
 });
 
 test("Study Engagement Overview loads streak independently without taking down existing overview", () => {
-  assert.match(frontend, /gamificationApi\.studyStreak\(\)/);
+  assert.match(frontend, /gamificationApi\.studyStreak\(account\)/);
   assert.match(frontend, /StudyStreakCard data=\{studyStreak\}/);
   assert.match(frontend, /studyStreakError/);
   assert.match(frontend, /visibilitychange/);

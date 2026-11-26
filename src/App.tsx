@@ -39,7 +39,9 @@ import {
   GAMIFICATION_OPTIMISTIC_POINTS_EVENT,
   GAMIFICATION_SOCKET_RECONNECTED_EVENT,
   GAMIFICATION_UPDATE_EVENT,
+  invalidateStudyStreak,
   setGamificationReadAccountScope,
+  type GamificationInvalidationDetail,
 } from "./features/gamification/realtime";
 import { warmStudyStreakCache } from "./features/gamification/studyStreakCache";
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
@@ -248,15 +250,30 @@ function AppContent({
       if (timer !== null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         timer = null;
+        if (getActiveAccountId() !== currentUser.id) return;
+        window.dispatchEvent(new CustomEvent<GamificationInvalidationDetail>(GAMIFICATION_INVALIDATED_EVENT, {
+          detail: { resources: ["studyStreak"] },
+        }));
         void warmStudyStreakCache(currentUser.id);
       }, 120);
     };
-    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
-    window.addEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
+    const onInvalidated = (event: Event) => {
+      const detail = (event as CustomEvent<GamificationInvalidationDetail>).detail;
+      if (detail?.resources?.includes("summary")) refresh();
+    };
+    const onLocalResult = (event: Event) => {
+      if (!(event as CustomEvent<{ recheckStreak?: boolean }>).detail?.recheckStreak) return;
+      invalidateStudyStreak(currentUser.id);
+      refresh();
+    };
+    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, onInvalidated);
+    window.addEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, onLocalResult);
+    window.addEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, refresh);
     return () => {
       if (timer !== null) window.clearTimeout(timer);
-      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
-      window.removeEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
+      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, onInvalidated);
+      window.removeEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, onLocalResult);
+      window.removeEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, refresh);
     };
   }, [currentUser?.id]);
   const shouldReduceMotion = useReducedMotion();
@@ -802,6 +819,7 @@ function AppContent({
 
       if (isReconnect) {
         window.dispatchEvent(new Event(FOCUS_SOCKET_RECONNECTED_EVENT));
+        invalidateStudyStreak(socketUser.id);
         window.dispatchEvent(new Event(GAMIFICATION_SOCKET_RECONNECTED_EVENT));
       }
 
