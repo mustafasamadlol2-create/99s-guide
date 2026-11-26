@@ -103,6 +103,7 @@ export const VideoCard = ({
   const sessionIdRef = useRef<string | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completionProbeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const completionProbeSessionRef = useRef<string | null>(null);
   const heartbeatInFlightRef = useRef(false);
   const disposedRef = useRef(false);
   const completedRef = useRef(initialCompleted);
@@ -241,11 +242,6 @@ export const VideoCard = ({
         }),
         silent: true,
       });
-      if (response.status === 409) {
-        sessionIdRef.current = null;
-        await startVerification(duration);
-        return;
-      }
       if (!response.ok) return;
       const data = await response.json();
       if (disposedRef.current) return;
@@ -265,6 +261,11 @@ export const VideoCard = ({
           lectureVideoCompleted: data?.lectureVideoCompleted === true,
           pointsAwarded: awarded,
         });
+      }
+    } catch (error) {
+      if ((error as { status?: number })?.status === 409 && !disposedRef.current && sessionIdRef.current === sessionId) {
+        sessionIdRef.current = null;
+        await startVerification(duration);
       }
     } finally {
       heartbeatInFlightRef.current = false;
@@ -286,11 +287,14 @@ export const VideoCard = ({
     clearCompletionProbeTimer();
     completionProbeTimerRef.current = setInterval(() => {
       const player = playerRef.current;
-      if (!player || completedRef.current || heartbeatInFlightRef.current) return;
+      const sessionId = sessionIdRef.current;
+      if (!player || !sessionId || completedRef.current || heartbeatInFlightRef.current) return;
+      if (completionProbeSessionRef.current === sessionId) return;
       const duration = Number(player.getDuration?.() || realDurationRef.current || 0);
       const position = Number(player.getCurrentTime?.() || 0);
       if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(position)) return;
       if (position / duration >= 0.8) {
+        completionProbeSessionRef.current = sessionId;
         void sendHeartbeat("PLAYING");
       }
     }, 400);

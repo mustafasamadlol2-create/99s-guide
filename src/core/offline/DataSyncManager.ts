@@ -1,4 +1,6 @@
 import { apiClient } from "../../core/api/apiClient";
+import { getActiveAccountGeneration, getActiveAccountId } from "../storage/accountData";
+import { matchesSubmittedProgress } from "./reconcilePendingProgress";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -142,97 +144,51 @@ class DataSyncManagerClass {
   /**
    * Fetches JSON data (Flashcards and MCQs) from server and updates local IndexedDB tables.
    */
-  public async fetchAndStoreAcademicMaterials(): Promise<{
-    flashcardsCount: number;
-    mcqsCount: number;
-  }> {
-    try {
-      const isOnline = await this.isOnline();
-      if (!isOnline) {
-        
-        return { flashcardsCount: 0, mcqsCount: 0 };
-      }
+  private academicDownload?: { scope: string; signal: AbortSignal; promise: Promise<void> };
+  private academicDownloadRevision = 0;
 
-      
-      const response = await apiClient("/api/materials?scope=offline", {
-        // Offline study packs must mirror the current canonical database. A
-        // cached/D1-stale response can otherwise keep deleted MCQs/flashcards
-        // alive on the device after an admin cleanup.
-        bypassCache: true,
-        retries: 1,
-        silent: true,
-      });
-      if (!response.ok) {
-        throw new Error("Failed to retrieve academic materials from server");
-      }
-
-      let data;
-      try {
-        data = await response.clone().json();
-      } catch (parseError) {
-        // A temporary malformed/network response must never destroy the PWA cache
-        // or unregister the service worker. Keep the last known-good offline data.
-        return { flashcardsCount: 0, mcqsCount: 0 };
-      }
-
-      const flashcards: Flashcard[] = data.flashcards || [];
-      const mcqs: MCQ[] = data.mcqs || [];
-
-      // Save to IndexedDB
-      await this.saveFlashcardsToLocal(flashcards);
-      await this.saveMCQsToLocal(mcqs);
-
-      
-      return { flashcardsCount: flashcards.length, mcqsCount: mcqs.length };
-    } catch (err: any) {
-      if (
-        err &&
-        (err.status === 401 ||
-          err.status === 403 ||
-          (err.message &&
-            err.message.includes("authenticated academic session")))
-      ) {
-        
-      } else {
-        
-      }
-      return { flashcardsCount: 0, mcqsCount: 0 };
-    }
-  }
-
-  private async saveFlashcardsToLocal(flashcards: Flashcard[]): Promise<void> {
-    const db = await this.ensureDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("flashcards", "readwrite");
-      const store = tx.objectStore("flashcards");
-
-      // Clear existing first
-      store.clear();
-
-      flashcards.forEach((card) => {
-        store.put(card);
-      });
-
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+  public fetchAndStoreAcademicMaterials(userId: string, group: string | undefined, signal: AbortSignal): Promise<void> {
+    const generation = getActiveAccountGeneration();
+    const scope = JSON.stringify([generation, userId, group]);
+    if (this.academicDownload?.scope === scope && !this.academicDownload.signal.aborted) return this.academicDownload.promise;
+    const isCurrent = () => !signal.aborted && getActiveAccountId() === userId
+      && getActiveAccountGeneration() === generation;
+    const task = this.downloadAcademicMaterials(scope + ":" + ++this.academicDownloadRevision, signal, isCurrent).finally(() => {
+      if (this.academicDownload?.promise === task) this.academicDownload = undefined;
     });
+    this.academicDownload = { scope, signal, promise: task };
+    return task;
   }
 
-  private async saveMCQsToLocal(mcqs: MCQ[]): Promise<void> {
+  private async downloadAcademicMaterials(scope: string, signal: AbortSignal, isCurrent: () => boolean): Promise<void> {
+    if (!isCurrent() || !await this.isOnline() || !isCurrent()) return;
+    const response = await apiClient("/api/materials?scope=offline", {
+      bypassCache: true, retries: 1, silent: true, signal, requestKey: "offline-pack:" + scope,
+    });
+    const data = await response.json();
+    if (!Array.isArray(data?.flashcards) || !Array.isArray(data.mcqs) || !isCurrent()) return;
+
     const db = await this.ensureDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("mcqs", "readwrite");
-      const store = tx.objectStore("mcqs");
-
-      // Clear existing first
-      store.clear();
-
-      mcqs.forEach((mcq) => {
-        store.put(mcq);
-      });
-
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+    if (!isCurrent()) return;
+    await new Promise<void>((resolve, reject) => {
+      // Replace both stores atomically. A partial or malformed download must
+      // never erase an otherwise complete pack.
+      const tx = db.transaction(["flashcards", "mcqs"], "readwrite");
+      const abort = () => { try { tx.abort(); } catch {} };
+      signal.addEventListener("abort", abort, { once: true });
+      tx.oncomplete = () => { signal.removeEventListener("abort", abort); resolve(); };
+      tx.onabort = () => { signal.removeEventListener("abort", abort); reject(tx.error ?? new DOMException("Offline pack aborted", "AbortError")); };
+      try {
+        const flashcards = tx.objectStore("flashcards");
+        const mcqs = tx.objectStore("mcqs");
+        flashcards.clear();
+        mcqs.clear();
+        data.flashcards.forEach((card: Flashcard) => flashcards.put(card));
+        data.mcqs.forEach((mcq: MCQ) => mcqs.put(mcq));
+      } catch (error) {
+        abort();
+        reject(error);
+      }
     });
   }
 
@@ -457,32 +413,33 @@ class DataSyncManagerClass {
   private readonly MAX_SYNC_ATTEMPTS = 5;
 
   public async triggerBackgroundSync(): Promise<boolean> {
+    const account = getActiveAccountId();
+    const generation = getActiveAccountGeneration();
+    const isCurrentAccount = () => getActiveAccountGeneration() === generation;
     const isOnline = await this.isOnline();
-    if (!isOnline || this.isProcessingSync) return false;
+    if (!account || !isCurrentAccount() || !isOnline || this.isProcessingSync) return false;
     
     // Global lock for both engines
-    if ((window as any).__offlineSyncLock) return false;
+    if ((window as any).__offlineSyncLock) {
+      this.scheduleSyncProcess();
+      return false;
+    }
     
     (window as any).__offlineSyncLock = true;
     this.isProcessingSync = true;
     
-    const unsyncedItems = await this.getUnsyncedProgressItems();
-    if (unsyncedItems.length === 0) {
-      this.syncRetryCount = 0;
-      this.isProcessingSync = false;
-      (window as any).__offlineSyncLock = false;
-      return true;
-    }
-
-    this.notifyListeners(true);
-    window.dispatchEvent(
-      new CustomEvent("offline-sync-status", {
-        detail: { syncing: true, status: "Syncing", pendingCount: unsyncedItems.length },
-      }),
-    );
-
+    let unsyncedItems: OfflineProgressItem[] = [];
+    let notified = false;
     let syncCompleted = false;
     try {
+      unsyncedItems = await this.getUnsyncedProgressItems(account);
+      if (!isCurrentAccount()) return false;
+      if (!unsyncedItems.length) { this.syncRetryCount = 0; return true; }
+      notified = true;
+      this.notifyListeners(true);
+      window.dispatchEvent(new CustomEvent("offline-sync-status", {
+        detail: { syncing: true, status: "Syncing", pendingCount: unsyncedItems.length },
+      }));
       const response = await apiClient("/api/offline/reconcile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -497,10 +454,17 @@ class DataSyncManagerClass {
       }
 
       const syncResult = await response.json();
-      const resolvedServerItems: OfflineProgressItem[] =
-        syncResult.resolved || [];
-
-      await this.applyResolvedItems(resolvedServerItems);
+      if (!isCurrentAccount()) return false;
+      if (!Array.isArray(syncResult?.resolved)) throw new Error("Invalid offline reconciliation acknowledgment.");
+      const resolvedServerItems: OfflineProgressItem[] = syncResult.resolved;
+      const acknowledged = new Map(resolvedServerItems.map((item) => [item.id, item]));
+      if (unsyncedItems.some((item) => {
+        const result = acknowledged.get(item.id);
+        return !result || result.userId !== item.userId || result.type !== item.type || result.targetId !== item.targetId;
+      })) throw new Error("Incomplete offline reconciliation acknowledgment.");
+      await this.applyResolvedItems(unsyncedItems, resolvedServerItems, isCurrentAccount);
+      if (!isCurrentAccount()) return false;
+      if ((await this.getUnsyncedProgressItems(account)).length && isCurrentAccount()) this.scheduleSyncProcess();
       syncCompleted = true;
       this.syncRetryCount = 0;
 
@@ -521,19 +485,20 @@ class DataSyncManagerClass {
         }),
       );
     } catch (err: any) {
+      if (!isCurrentAccount() || !notified) return false;
       syncCompleted = false;
       const status = err.status || (err.response && err.response.status) || 500;
       
       if (status === 401 || status === 403 || status === 400 || status === 404 || status === 422) {
          // Permanent Error
-         await this.moveToDLQ(unsyncedItems);
+         await this.updateSubmittedProgress(unsyncedItems, isCurrentAccount, (item) => ({ ...item, synced: -1 }));
          this.syncRetryCount = 0;
          window.dispatchEvent(new CustomEvent("offline-sync-status", { detail: { status: "Failed", message: "A saved change was rejected by the server." } }));
       } else {
          // Transient Error -> Retry with a hard cap to prevent infinite retry loops.
          this.syncRetryCount++;
          if (this.syncRetryCount >= this.MAX_SYNC_ATTEMPTS) {
-            await this.moveToDLQ(unsyncedItems);
+            await this.updateSubmittedProgress(unsyncedItems, isCurrentAccount, (item) => ({ ...item, synced: -1 }));
             this.syncRetryCount = 0;
             window.dispatchEvent(new CustomEvent("offline-sync-status", { detail: { status: "Failed", message: "A saved change could not be synced after multiple attempts. It was saved for review." } }));
          } else {
@@ -542,28 +507,15 @@ class DataSyncManagerClass {
          }
       }
     } finally {
-      this.notifyListeners(false);
+      if (notified) this.notifyListeners(false);
       this.isProcessingSync = false;
       (window as any).__offlineSyncLock = false;
+      if (!isCurrentAccount() && getActiveAccountId()) this.scheduleSyncProcess();
     }
 
     return syncCompleted;
   }
   
-  private async moveToDLQ(items: OfflineProgressItem[]): Promise<void> {
-    const db = await this.ensureDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("offline_progress", "readwrite");
-      const store = tx.objectStore("offline_progress");
-      items.forEach((item) => {
-        const updatedItem = { ...item, synced: -1 }; // -1 indicates DLQ
-        store.put(updatedItem);
-      });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  }
-
   /**
    * Reads all terminal dead-letter progress items (synced: -1) so failures can
    * be surfaced deterministically and recovered instead of silently discarded.
@@ -633,7 +585,7 @@ class DataSyncManagerClass {
     }
   }
 
-  private async getUnsyncedProgressItems(): Promise<OfflineProgressItem[]> {
+  private async getUnsyncedProgressItems(userId: string): Promise<OfflineProgressItem[]> {
     const db = await this.ensureDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction("offline_progress", "readonly");
@@ -642,7 +594,7 @@ class DataSyncManagerClass {
       const request = index.getAll(IDBKeyRange.only(0));
 
       request.onsuccess = () =>
-        resolve(request.result as OfflineProgressItem[]);
+        resolve((request.result as OfflineProgressItem[]).filter((item) => item.userId === userId).slice(0, 500));
       request.onerror = () => reject(request.error);
     });
   }
@@ -651,33 +603,38 @@ class DataSyncManagerClass {
    * Conflict Resolution Strategy:
    * Compares timestamps for each record to protect and store only the absolute latest update.
    */
-  private async applyResolvedItems(
-    resolvedItems: OfflineProgressItem[],
+  private applyResolvedItems(
+    submitted: OfflineProgressItem[], resolved: OfflineProgressItem[], isCurrent: () => boolean,
+  ): Promise<void> {
+    const byId = new Map(resolved.map((item) => [item.id, item]));
+    return this.updateSubmittedProgress(submitted, isCurrent, (sent) => {
+      const result = byId.get(sent.id);
+      if (!result || result.userId !== sent.userId || result.type !== sent.type || result.targetId !== sent.targetId) return undefined;
+      return result.discarded ? null : { ...result, synced: 1 };
+    });
+  }
+
+  private async updateSubmittedProgress(
+    submitted: OfflineProgressItem[], isCurrent: () => boolean,
+    resolveItem: (item: OfflineProgressItem) => OfflineProgressItem | null | undefined,
   ): Promise<void> {
     const db = await this.ensureDb();
-    return new Promise((resolve, reject) => {
+    if (!isCurrent()) return;
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction("offline_progress", "readwrite");
       const store = tx.objectStore("offline_progress");
-
-      resolvedItems.forEach((item) => {
-        if (item.discarded) {
-          // The canonical server no longer has this lecture/card. Keeping the
-          // obsolete offline record would make every future app launch retry a
-          // mutation that can never succeed. Remove it permanently.
-          store.delete(item.id);
-          return;
-        }
-
-        // Force sync status marker to true since backend saved it safely.
-        const updatedItem = {
-          ...item,
-          synced: 1,
+      for (const sent of submitted) {
+        const request = store.get(sent.id);
+        request.onsuccess = () => {
+          // A later offline action on this item can be saved during the network request.
+          if (!isCurrent() || !matchesSubmittedProgress(request.result, sent)) return;
+          const next = resolveItem(sent);
+          if (next === null) store.delete(sent.id);
+          else if (next) store.put(next);
         };
-        store.put(updatedItem);
-      });
-
+      }
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   }
 

@@ -25,6 +25,9 @@ export {
 export type { VideoPlayerState };
 
 const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
+const videoStatusFields = {
+  materialId: true, durationSeconds: true, verifiedMilliseconds: true, completedAt: true,
+} as const;
 
 export type VideoWatchStatus = {
   materialId: string;
@@ -136,6 +139,7 @@ export class VideoWatchProgressService {
     if (videos.length === 0) return [];
     const rows = await this.database.videoWatchProgress.findMany({
       where: { userId, materialId: { in: videos.map((video) => video.id) } },
+      select: videoStatusFields,
     });
     const rowByMaterial = new Map(rows.map((row) => [row.materialId, row]));
     return videos.map((video) => {
@@ -172,12 +176,14 @@ export class VideoWatchProgressService {
     const progress = await this.database.$transaction(async (tx) => {
       const existing = await tx.videoWatchProgress.findUnique({
         where: { userId_materialId: { userId: input.userId, materialId: input.materialId } },
+        select: { durationSeconds: true, completedAt: true },
       });
       const canonicalDuration = existing
         ? Math.max(existing.durationSeconds, durationSeconds)
         : durationSeconds;
       const row = await tx.videoWatchProgress.upsert({
         where: { userId_materialId: { userId: input.userId, materialId: input.materialId } },
+        select: { ...videoStatusFields, sessionId: true },
         update: existing?.completedAt
           ? { durationSeconds: canonicalDuration }
           : {
@@ -259,6 +265,10 @@ export class VideoWatchProgressService {
       if (!material) return null;
       const current = await tx.videoWatchProgress.findUnique({
         where: { userId_materialId: { userId: input.userId, materialId: input.materialId } },
+        select: {
+          ...videoStatusFields, id: true, sessionId: true, lastPositionSeconds: true,
+          lastHeartbeatAt: true, lastPlayerState: true, lastPlaybackRate: true,
+        },
       });
       if (!current) return { staleSession: true as const };
       if (current.completedAt) {
@@ -310,6 +320,7 @@ export class VideoWatchProgressService {
 
       const updated = await tx.videoWatchProgress.update({
         where: { id: current.id },
+        select: videoStatusFields,
         data: {
           durationSeconds: canonicalDuration,
           verifiedMilliseconds,

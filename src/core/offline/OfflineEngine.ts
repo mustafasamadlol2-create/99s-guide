@@ -4,7 +4,7 @@ import { apiClient } from "../../core/api/apiClient";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { Network } from "@capacitor/network";
-import { accountStorageKey } from "../storage/accountData";
+import { accountStorageKey, getActiveAccountGeneration, getActiveAccountId } from "../storage/accountData";
 import { filterAcademicCalendarEvents } from "../calendar/academicEvents";
 import { isLegacyPersonalCalendarMutation } from "./legacyCalendarMutation";
 /**
@@ -22,6 +22,7 @@ import {
 
 interface UnsyncedMutation {
   id: string;
+  accountId?: string;
   type:
     | "UPDATE_PROFILE"
     | "UPDATE_PROGRESS"
@@ -44,6 +45,10 @@ interface UnsyncedMutation {
 // there can represent a change the user still needs to know about.
 const isUserVisibleOfflineMutation = (mutation: UnsyncedMutation): boolean =>
   mutation.type !== "UPDATE_PROGRESS";
+
+function mutationAccount(mutation: UnsyncedMutation): string | null {
+  return mutation.accountId ?? (typeof mutation.payload?.userId === "string" ? mutation.payload.userId : null);
+}
 
 class OfflineEngineClass {
   private listeners: Set<(online: boolean) => void> = new Set();
@@ -262,8 +267,24 @@ class OfflineEngineClass {
 
   // --- Queue Failed Requests (Queue and Background Sync) ---
 
-  private inMemoryQueue: UnsyncedMutation[] | null = null;
-  private inMemoryDeadLetterQueue: UnsyncedMutation[] | null = null;
+  private pendingByAccount = new Map<string, UnsyncedMutation[]>();
+  private deadLettersByAccount = new Map<string, UnsyncedMutation[]>();
+  private get inMemoryQueue(): UnsyncedMutation[] | null {
+    return this.pendingByAccount.get(accountStorageKey("pending")) ?? null;
+  }
+  private set inMemoryQueue(queue: UnsyncedMutation[] | null) {
+    const key = accountStorageKey("pending");
+    if (queue) this.pendingByAccount.set(key, queue);
+    else this.pendingByAccount.delete(key);
+  }
+  private get inMemoryDeadLetterQueue(): UnsyncedMutation[] | null {
+    return this.deadLettersByAccount.get(accountStorageKey("deadLetters")) ?? null;
+  }
+  private set inMemoryDeadLetterQueue(queue: UnsyncedMutation[] | null) {
+    const key = accountStorageKey("deadLetters");
+    if (queue) this.deadLettersByAccount.set(key, queue);
+    else this.deadLettersByAccount.delete(key);
+  }
   private deadLetterDbPromise: Promise<IDBDatabase> | null = null;
   private deadLetterDb: IDBDatabase | null = null;
   private syncRetryCount = 0;
@@ -319,6 +340,9 @@ class OfflineEngineClass {
   }
 
   private async hydrateDeadLetters(): Promise<void> {
+    const accountId = getActiveAccountId();
+    const generation = getActiveAccountGeneration();
+    if (!accountId) return;
     try {
       const db = await this.openDeadLetterDb();
       const stored = await new Promise<UnsyncedMutation[]>((resolve, reject) => {
@@ -327,9 +351,11 @@ class OfflineEngineClass {
         request.onsuccess = () => resolve(request.result as UnsyncedMutation[]);
         request.onerror = () => reject(request.error);
       });
-      if (stored.length === 0) return;
+      if (getActiveAccountGeneration() !== generation) return;
+      const owned = stored.filter((item) => mutationAccount(item) === accountId);
+      if (!owned.length) return;
       const merged = new Map(this.getDeadLetterQueue().map((item) => [item.id, item]));
-      stored.forEach((item) => merged.set(item.id, item));
+      owned.forEach((item) => merged.set(item.id, item));
       this.inMemoryDeadLetterQueue = Array.from(merged.values());
       try { localStorage.setItem(accountStorageKey("offline_dlq"), JSON.stringify(this.inMemoryDeadLetterQueue)); } catch { /* IDB remains durable */ }
     } catch {
@@ -351,13 +377,20 @@ class OfflineEngineClass {
   }
 
   private async persistPendingQueue(queue: UnsyncedMutation[]): Promise<void> {
+    const accountId = getActiveAccountId();
+    if (!accountId) return;
     try {
       const db = await this.openDeadLetterDb();
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction("pending", "readwrite");
         const store = tx.objectStore("pending");
-        store.clear();
-        queue.forEach((item) => store.put(item));
+        const previous = store.getAll();
+        previous.onsuccess = () => {
+          for (const item of previous.result as UnsyncedMutation[]) {
+            if (mutationAccount(item) === accountId) store.delete(item.id);
+          }
+          queue.forEach((item) => store.put({ ...item, accountId: mutationAccount(item) ?? accountId }));
+        };
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
@@ -365,6 +398,9 @@ class OfflineEngineClass {
   }
 
   private async hydratePendingQueue(): Promise<void> {
+    const accountId = getActiveAccountId();
+    const generation = getActiveAccountGeneration();
+    if (!accountId) return;
     try {
       const db = await this.openDeadLetterDb();
       const stored = await new Promise<UnsyncedMutation[]>((resolve, reject) => {
@@ -373,23 +409,17 @@ class OfflineEngineClass {
         request.onsuccess = () => resolve(request.result as UnsyncedMutation[]);
         request.onerror = () => reject(request.error);
       });
-      if (stored.length === 0) return;
+      if (getActiveAccountGeneration() !== generation) return;
+      const owned = stored.filter((item) => mutationAccount(item) === accountId);
+      if (!owned.length) return;
       const merged = new Map(this.getMutationQueue().map((item) => [item.id, item]));
-      stored.forEach((item) => merged.set(item.id, item));
+      owned.forEach((item) => { if (!merged.has(item.id)) merged.set(item.id, item); });
       this.inMemoryQueue = Array.from(merged.values());
     } catch { /* localStorage remains the compatibility path */ }
   }
 
-  private async clearPendingQueue(): Promise<void> {
-    try {
-      const db = await this.openDeadLetterDb();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction("pending", "readwrite");
-        tx.objectStore("pending").clear();
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch { /* best effort */ }
+  private clearPendingQueue(): Promise<void> {
+    return this.persistPendingQueue([]);
   }
 
   public getDeadLetterQueue(): UnsyncedMutation[] {
@@ -416,7 +446,7 @@ class OfflineEngineClass {
     } catch(e) {
       this.inMemoryDeadLetterQueue = dlq;
     }
-    void this.persistDeadLetter(mutation);
+    void this.persistDeadLetter({ ...mutation, accountId: getActiveAccountId() ?? undefined });
   }
 
   private persistQueue(queue: UnsyncedMutation[]): boolean {
@@ -451,6 +481,7 @@ class OfflineEngineClass {
   ): void {
     const newMutation: UnsyncedMutation = {
       ...mutation,
+      accountId: getActiveAccountId() ?? undefined,
       id: `mut_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       timestamp: new Date().toISOString(),
     };
@@ -509,8 +540,8 @@ class OfflineEngineClass {
   /** Remove the account's pending/dead-letter database and in-memory queues. */
   public async clearAccountStorage(): Promise<void> {
     this.setSyncPaused(true);
-    this.inMemoryQueue = [];
-    this.inMemoryDeadLetterQueue = [];
+    this.pendingByAccount.clear();
+    this.deadLettersByAccount.clear();
     this.syncRetryCount = 0;
     if (this.retryTimerId !== null) {
       clearTimeout(this.retryTimerId);
@@ -578,9 +609,16 @@ class OfflineEngineClass {
 
   public async processQueue(): Promise<boolean> {
     if (!this.isOnlineState || this.isSyncPaused || this.isProcessingQueue) return false;
-    
+    const account = getActiveAccountId();
+    if (!account) return false;
+    const generation = getActiveAccountGeneration();
+    const isCurrentAccount = () => getActiveAccountGeneration() === generation;
+
     // Global lock for both engines
-    if ((window as any).__offlineSyncLock) return false;
+    if ((window as any).__offlineSyncLock) {
+      this.scheduleQueueProcess();
+      return false;
+    }
     
     (window as any).__offlineSyncLock = true;
     this.isProcessingQueue = true;
@@ -589,8 +627,13 @@ class OfflineEngineClass {
     
     try {
       await this.hydrateDeadLetters();
+      if (!isCurrentAccount()) return false;
       await this.hydratePendingQueue();
-      const queue = this.getMutationQueue();
+      if (!isCurrentAccount()) return false;
+      const queue = this.getMutationQueue().filter((mutation) => {
+        const owner = mutationAccount(mutation);
+        return !owner || owner === account;
+      });
       if (queue.length === 0) {
         this.syncRetryCount = 0;
         return true;
@@ -611,6 +654,7 @@ class OfflineEngineClass {
       );
 
       for (const mutation of queue) {
+        if (!isCurrentAccount()) return false;
         try {
           if (isLegacyPersonalCalendarMutation(mutation)) {
             this.addToDLQ({
@@ -635,15 +679,19 @@ class OfflineEngineClass {
               });
               break;
             case "UPDATE_PROGRESS":
-              request = apiClient("/api/auth/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  userId: mutation.payload.userId,
-                  progress: mutation.payload.progress,
-                }),
-                silent: true,
-              });
+              if (mutation.payload.userId !== account) throw Object.assign(new Error("Progress belongs to a different account."), { status: 403 });
+              request = apiClient(
+                mutation.payload.progress?.length > 2000 ? "/api/auth/sync" : "/api/auth/sync?mode=progress",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    userId: mutation.payload.userId,
+                    progress: mutation.payload.progress,
+                  }),
+                  silent: true,
+                },
+              );
               break;
             case "ADD_EVENT":
               request = apiClient("/api/calendar/events", {
@@ -678,8 +726,20 @@ class OfflineEngineClass {
           }
 
           const response = await request;
+          if (!isCurrentAccount()) return false;
           if (!response.ok) throw response;
+          if (mutation.type === "UPDATE_PROGRESS") {
+            const { progress, prunedLectureIds } = await response.json();
+            if (!isCurrentAccount()) return false;
+            if (!Array.isArray(progress) || !Array.isArray(prunedLectureIds)) {
+              throw new Error("Invalid progress synchronization acknowledgment.");
+            }
+            window.dispatchEvent(new CustomEvent("offline-progress-reconciled", {
+              detail: { userId: account, progress, prunedLectureIds },
+            }));
+          }
         } catch (err: any) {
+          if (!isCurrentAccount()) return false;
           const status = err.status || (err.response && err.response.status) || 500;
           const attempts = (mutation.attempts || 0) + 1;
 
@@ -715,7 +775,13 @@ class OfflineEngineClass {
         }
       }
 
-      this.persistQueue(remaining);
+      // Writes added while the requests were in flight are outside this batch.
+      const attemptedIds = new Set(queue.map((mutation) => mutation.id));
+      const needsRetry = remaining.length > 0;
+      const unattempted = this.getMutationQueue().filter((mutation) => !attemptedIds.has(mutation.id));
+      const isOwned = (mutation: UnsyncedMutation) => !mutationAccount(mutation) || mutationAccount(mutation) === account;
+      remaining.push(...unattempted.filter(isOwned));
+      this.persistQueue([...remaining, ...unattempted.filter((mutation) => !isOwned(mutation))]);
 
       const fullyResolved = remaining.length === 0;
       const hasFailures = deadLettered.length > 0;
@@ -772,12 +838,13 @@ class OfflineEngineClass {
           processedAny = true;
         }
       } else {
-        this.syncRetryCount++;
+        this.syncRetryCount = needsRetry ? this.syncRetryCount + 1 : 0;
         this.scheduleQueueProcess();
       }
     } finally {
       this.isProcessingQueue = false;
       (window as any).__offlineSyncLock = false;
+      if (!isCurrentAccount() && getActiveAccountId() && !this.isSyncPaused) this.scheduleQueueProcess();
     }
     
     return processedAny;
@@ -788,7 +855,9 @@ class OfflineEngineClass {
    * Returns the number of mutations moved back into the active queue.
    */
   public async retryDeadLetter(): Promise<number> {
+    const generation = getActiveAccountGeneration();
     await this.hydrateDeadLetters();
+    if (getActiveAccountGeneration() !== generation) return 0;
     const dlq = this.getDeadLetterQueue();
     if (dlq.length === 0) return 0;
 

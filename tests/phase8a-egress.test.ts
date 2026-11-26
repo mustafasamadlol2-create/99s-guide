@@ -150,7 +150,7 @@ test("academic bootstrap retains full offline packs and strict D1/account-group 
   assert.doesNotMatch(mcqQuery, /correctAnswer/);
   assert.match(materials, /needsOfflineStudyData \? prismaClient\.flashcard\.findMany\(\{ take: 2000 \}\)/);
   assert.match(materials, /const \{ correctAnswer: _omit, \.\.\.rest \} = m/);
-  assert.match(app, /academicUserId = currentUser\?\.id[\s\S]*?academicStudentGroup = currentUser\?\.studentGroup[\s\S]*?!academicUserId \|\| !isActive \|\| !isOnline[\s\S]*?fetchAndStoreAcademicMaterials\(\)[\s\S]*?\[academicUserId, academicStudentGroup, isActive, isOnline\]/);
+  assert.match(app, /academicUserId = currentUser\?\.id[\s\S]*?academicStudentGroup = currentUser\?\.studentGroup[\s\S]*?!academicUserId \|\| !isActive \|\| !isOnline[\s\S]*?fetchAndStoreAcademicMaterials\(academicUserId, academicStudentGroup, controller\.signal\)[\s\S]*?controller\.abort\(\)[\s\S]*?\[academicUserId, academicStudentGroup, isActive, isOnline\]/);
 });
 
 test("account bootstrap skips identity data only after the existing session and account checks", () => {

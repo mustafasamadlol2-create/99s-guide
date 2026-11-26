@@ -263,13 +263,18 @@ export function GroupFocusFrontend({
 
   useEffect(() => {
     if (!isHome || !accountId) return;
-    void loadMyRooms();
-    void loadPublicRooms();
-    const refresh = window.setInterval(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
       void loadMyRooms();
       void loadPublicRooms();
-    }, HOME_REFRESH_MILLISECONDS);
-    return () => window.clearInterval(refresh);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, HOME_REFRESH_MILLISECONDS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [accountId, isHome, loadMyRooms, loadPublicRooms]);
 
   const openCreate = useCallback(() => {

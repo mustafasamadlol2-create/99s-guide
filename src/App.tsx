@@ -18,7 +18,8 @@ import {
 } from "./config/featureFlags";
 import { useLegacyArabicUiLocalization } from "./core/i18n/legacyArabicUi";
 import { OfflineEngine } from "./core/offline/OfflineEngine";
-import { filterAcademicCalendarEvents } from "./core/calendar/academicEvents";
+import { filterAcademicCalendarEvents, filterAcademicCalendarForAccount } from "./core/calendar/academicEvents";
+import { AcademicRefresh, watchVisibleAcademicRefresh, type AcademicRead, type AcademicRefreshMode, type AcademicResource } from "./core/calendar/AcademicRefresh";
 import { IDBManager } from "./core/utils/indexedDB";
 import { DataSyncManager } from "./core/offline/DataSyncManager";
 import { CacheManager, CACHE_TTL } from "./core/cache/CacheManager";
@@ -346,7 +347,7 @@ function AppContent({
       OfflineEngine.setSyncPaused(false);
       OfflineEngine.processQueue();
     }
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   // Auto-restore access when a timed ban expires on the client side
   useEffect(() => {
@@ -611,17 +612,6 @@ function AppContent({
 
     const unbindNetwork = NativeBridge.onNetworkChange((online) => {
       setIsOnline(online);
-
-      // Never kick a data refresh while the native app-switcher transition is
-      // still restoring the WebView. The normal active-state effect below will
-      // refresh once, after the UI is stable.
-      if (
-        online &&
-        lifecycleActiveRef.current &&
-        !resumeSettlingRef.current
-      ) {
-        refreshAcademicDataRef.current?.(true);
-      }
     });
 
     const unbindLifecycle = NativeBridge.addAppLifecycleListener((active) => {
@@ -647,9 +637,7 @@ function AppContent({
         resumeSettlingRef.current = false;
         setIsActive(true);
         window.dispatchEvent(new Event("99s-app-resume-settled"));
-        // No direct refresh here. The existing [currentUser, isActive] effect
-        // performs one normal refresh after isActive becomes true, avoiding a
-        // duplicate foreground burst and the visible repaint it caused.
+        // The academic effect refreshes after the WebView has settled.
       }, RESUME_SETTLE_MS);
     });
 
@@ -817,16 +805,7 @@ function AppContent({
         window.dispatchEvent(new Event(GAMIFICATION_SOCKET_RECONNECTED_EVENT));
       }
 
-      // Re-fetch the canonical academic catalog after every socket connect/reconnect.
-      // This deliberately includes /api/materials because the dashboard subject
-      // cards are built from that response, not only from /api/lectures.
-      CacheManager.invalidate("materials");
-      CacheManager.invalidate("lectures");
-      void Promise.allSettled([
-        fetchMaterials(true),
-        fetchDbLectures(true),
-        fetchCalendarEvents(true),
-      ]);
+      void refreshAcademicDataRef.current?.("revalidate");
     });
 
     socket.on("focus_state_changed", (payload?: unknown) => {
@@ -881,6 +860,9 @@ function AppContent({
       event?: CalendarEvent;
       events?: CalendarEvent[];
     }) => {
+      const account = currentUserRef.current;
+      if (!account) return;
+      CacheManager.invalidate(accountStorageKey("academic-calendar:", account.id));
       if (payload?.action === "delete" && payload.eventId) {
         setCalendarEventsDb((prev) => {
           const updated = prev.filter(e => e.id !== payload.eventId);
@@ -889,14 +871,14 @@ function AppContent({
           return updated;
         });
       } else if (payload?.action === "upsert" && payload.event) {
+        const event = payload.event;
         setCalendarEventsDb((prev) => {
-          const existing = prev.find(e => e.id === payload.event!.id);
-          let updated;
-          if (existing) {
-            updated = prev.map(e => e.id === payload.event!.id ? payload.event! : e);
-          } else {
-             updated = filterAcademicCalendarEvents([...prev, payload.event!]);
-          }
+          const visible = filterAcademicCalendarForAccount([event], currentUserRef.current).length > 0;
+          const updated = visible
+            ? prev.some((row) => row.id === event.id)
+              ? prev.map((row) => row.id === event.id ? event : row)
+              : [...prev, event]
+            : prev.filter((row) => row.id !== event.id);
           localStorage.setItem("calendar_events", JSON.stringify(updated));
           OfflineEngine.setCachedCalendarEvents(updated);
           return updated;
@@ -904,16 +886,17 @@ function AppContent({
       } else if (payload?.action === "batch-upsert" && payload.events) {
         setCalendarEventsDb((prev) => {
           const byId = new Map(prev.map((event) => [event.id, event]));
-           for (const event of payload.events ?? []) {
-             if (event.userId == null) byId.set(event.id, event);
-           }
-           const updated = filterAcademicCalendarEvents([...byId.values()]);
+          for (const event of payload.events ?? []) byId.set(event.id, event);
+          const updated = filterAcademicCalendarForAccount([...byId.values()], currentUserRef.current);
           localStorage.setItem("calendar_events", JSON.stringify(updated));
           OfflineEngine.setCachedCalendarEvents(updated);
           return updated;
         });
       } else {
-        fetchCalendarEvents(true).catch(() => {});
+        void refreshAcademicDataRef.current?.("invalidate", ["calendar"]);
+      }
+      if (payload?.action && academicRefresh.isReading("calendar")) {
+        void refreshAcademicDataRef.current?.("invalidate", ["calendar"]);
       }
       window.dispatchEvent(new CustomEvent("socket-calendar-updated"));
     });
@@ -998,7 +981,7 @@ function AppContent({
     const refreshCanonicalLectureCatalog = () => {
       CacheManager.invalidate("materials");
       CacheManager.invalidate("lectures");
-      void Promise.allSettled([fetchMaterials(true), fetchDbLectures(true)]);
+      void refreshAcademicDataRef.current?.("invalidate", ["materials", "lectures"]);
     };
 
     socket.on("lecture_created", (lecture: any) => {
@@ -1031,9 +1014,7 @@ function AppContent({
       window.dispatchEvent(new CustomEvent("socket-moderation-history-updated"));
     });
     socket.on("materials_updated", () => {
-      CacheManager.invalidate("materials");
-      CacheManager.invalidate("lectures");
-      void Promise.allSettled([fetchMaterials(true), fetchDbLectures(true)]);
+      refreshCanonicalLectureCatalog();
     });
     socket.on("roster_updated", () => {
       window.dispatchEvent(new CustomEvent("socket-roster-updated"));
@@ -1428,19 +1409,23 @@ function AppContent({
 
   // Periodically refresh JWT token in background if user is active to prevent session expiration
   useEffect(() => {
-    if (!currentUser || !isActive) return;
+    const accountId = currentUser?.id;
+    if (!accountId || !isActive) return;
+    const controller = new AbortController();
 
     // Refresh every 20 minutes
     const intervalId = setInterval(
       async () => {
+        if (document.hidden || !OfflineEngine.isOnline()) return;
         try {
           const response = await apiClient("/api/auth/refresh", {
             method: "POST",
             silent: true,
+            signal: controller.signal,
           });
           if (response.ok) {
             const data = await response.json().catch(() => ({}));
-            if (data.token) {
+            if (data.token && !controller.signal.aborted && currentUserRef.current?.id === accountId) {
               await SecureStorage.set("auth_token", data.token);
             }
             
@@ -1452,8 +1437,8 @@ function AppContent({
       20 * 60 * 1000,
     );
 
-    return () => clearInterval(intervalId);
-  }, [currentUser, isActive]);
+    return () => { clearInterval(intervalId); controller.abort(); };
+  }, [currentUser?.id, isActive]);
 
   const handleMarkNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
@@ -1513,7 +1498,11 @@ function AppContent({
     "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa"
   >("pdf");
   const [progressDb, setProgressDb] = useState<UserProgress[]>([]);
-  const [calendarEventsDb, setCalendarEventsDb] = useState<CalendarEvent[]>([]);
+  const [storedCalendarEvents, setCalendarEventsDb] = useState<CalendarEvent[]>([]);
+  const calendarEventsDb = useMemo(
+    () => filterAcademicCalendarForAccount(storedCalendarEvents, currentUser),
+    [storedCalendarEvents, currentUser?.studentGroup, currentUser?.role, currentUser?.id],
+  );
   const [editingCalendarEvent, setEditingCalendarEvent] = useState<CalendarEvent | null>(null);
   const [muteStatus, setMuteStatus] = useState<{
     isMuted: boolean; isPermanent: boolean; endTime: string | null; reason: string | null;
@@ -1522,9 +1511,8 @@ function AppContent({
   const [dbLectures, setDbLectures] = useState<DatabaseLecture[]>([]);
   const [lectureCatalogStatus, setLectureCatalogStatus] =
     useState<"loading" | "ready" | "error">("loading");
-  const refreshAcademicDataRef = useRef<((bypassCache?: boolean) => Promise<void>) | null>(null);
-  const academicRefreshInFlightRef = useRef<Promise<void> | null>(null);
-  const lastAcademicRefreshAtRef = useRef(0);
+  const refreshAcademicDataRef = useRef<((mode: AcademicRefreshMode, resources?: AcademicResource[]) => Promise<void>) | null>(null);
+  const [academicRefresh] = useState(() => new AcademicRefresh());
 
   // Performance Optimization: Memoize subject lecture counts in O(N + M) time.
   // The backend already merges DB lectures into subject.modules, so counting
@@ -2954,307 +2942,163 @@ function AppContent({
     };
   }, [device.isPhone, navigationPath, readScrollPosition]);
 
-  const fetchMaterials = async (bypassCache = false) => {
-    if (!currentUserRef.current) return;
-    // Stale-while-revalidate: render from cache instantly, then update with fresh data
-    if (!bypassCache) {
-      const cached = await CacheManager.get<any[]>("materials", CACHE_TTL.MATERIALS);
-      if (cached) setSubjects(cached);
+  const fetchMaterials = async ({ signal, requestKey, isCurrent }: AcademicRead, restore: boolean) => {
+    if (restore) {
+      const cached = await CacheManager.get<Subject[]>("materials", CACHE_TTL.MATERIALS)
+        ?? await IDBManager.getItem<Subject[]>("subjects_cache").catch(() => null)
+        ?? OfflineEngine.getCachedSubjects();
+      if (isCurrent() && cached.length > 0) setSubjects(cached);
     }
-    try {
-      // `bypassCache` controls whether stale local data is shown first. The
-      // network leg itself must always bypass the generic API/browser cache so
-      // deleted lectures/materials disappear as soon as the canonical server responds.
-      const response = await apiClient("/api/materials?scope=subjects", {
-        bypassCache: true,
-        retries: 1,
-        silent: true,
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.subjects) {
-          setSubjects(data.subjects);
-          CacheManager.set("materials", data.subjects, CACHE_TTL.MATERIALS).catch(() => {});
-          IDBManager.setItem("subjects_cache", data.subjects).catch(() => {});
-          try { localStorage.setItem("subjects_cache", JSON.stringify(data.subjects)); } catch {}
-          OfflineEngine.setCachedSubjects(data.subjects);
-        }
-      }
-    } catch (err) {
-      // A forced canonical refresh must never restore a stale persisted catalog.
-      if (!bypassCache) {
-        const idbCached = await IDBManager.getItem("subjects_cache");
-        if (idbCached) {
-          setSubjects(idbCached as any);
-        } else {
-          const cachedStr = localStorage.getItem("subjects_cache");
-          if (cachedStr) setSubjects(safeJsonParse(cachedStr, []));
-        }
-      }
-    }
+    if (!isCurrent() || !isOnline) return false;
+    const response = await apiClient("/api/materials?scope=subjects", {
+      bypassCache: true, retries: 1, silent: true, signal, requestKey,
+    });
+    const data = await response.json();
+    if (!isCurrent() || !Array.isArray(data?.subjects)) return false;
+    setSubjects(data.subjects);
+    void CacheManager.set("materials", data.subjects, CACHE_TTL.MATERIALS);
+    IDBManager.setItem("subjects_cache", data.subjects).catch(() => {});
+    try { localStorage.setItem("subjects_cache", JSON.stringify(data.subjects)); } catch {}
+    OfflineEngine.setCachedSubjects(data.subjects);
+    return true;
   };
 
-  const fetchDbLectures = async (bypassCache = false) => {
-    if (!currentUserRef.current) return;
-    setLectureCatalogStatus((previous) =>
-      previous === "ready" && dbLectures.length > 0 ? "ready" : "loading",
-    );
-    // Stale-while-revalidate: render from cache instantly, then update with fresh data
-    if (!bypassCache) {
-      try {
-        const cached = await CacheManager.get<any[]>("lectures", CACHE_TTL.LECTURES);
-        if (cached) {
-          setDbLectures(cached);
-          setLectureCatalogStatus("ready");
-        }
-      } catch {
-        // A cache failure should not prevent the network refresh from running.
-      }
-    }
-    try {
-      const res = await apiClient("/api/lectures", {
-        bypassCache: true,
-        retries: 1,
-        silent: true,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDbLectures(data);
+  const loadDbLectures = async ({ signal, requestKey, isCurrent }: AcademicRead, restore: boolean) => {
+    setLectureCatalogStatus((previous) => previous === "ready" ? previous : "loading");
+    let restored = false;
+    if (restore) {
+      const cached = await CacheManager.get<DatabaseLecture[]>("lectures", CACHE_TTL.LECTURES)
+        ?? await IDBManager.getItem<DatabaseLecture[]>("db_lectures_list_cache").catch(() => null)
+        ?? safeJsonParse<DatabaseLecture[]>(localStorage.getItem("db_lectures_list_cache") || "[]", []);
+      if (isCurrent() && cached.length > 0) {
+        restored = true;
+        setDbLectures(cached);
         setLectureCatalogStatus("ready");
-        CacheManager.set("lectures", data, CACHE_TTL.LECTURES).catch(() => {});
-        IDBManager.setItem("db_lectures_list_cache", data).catch(() => {});
-        try { localStorage.setItem("db_lectures_list_cache", JSON.stringify(data)); } catch {}
-        OfflineEngine.pruneCachedLectures(
-          Array.isArray(data) ? data.map((item: any) => String(item.id)) : [],
-        );
-      } else {
-        throw new Error("HTTP error " + res.status);
-      }
-    } catch (e) {
-      let restoredCachedData = false;
-      if (!bypassCache) {
-        try {
-          const idbCached = await IDBManager.getItem("db_lectures_list_cache");
-          if (idbCached) {
-            setDbLectures(idbCached as any);
-            setLectureCatalogStatus("ready");
-            restoredCachedData = true;
-          } else {
-            const cachedStr = localStorage.getItem("db_lectures_list_cache");
-            if (cachedStr) {
-              setDbLectures(safeJsonParse(cachedStr, []));
-              setLectureCatalogStatus("ready");
-              restoredCachedData = true;
-            }
-          }
-        } catch (err) {}
-      }
-      if (!restoredCachedData) {
-        setLectureCatalogStatus(dbLectures.length > 0 ? "ready" : "error");
       }
     }
-  };
-
-  const fetchCalendarEvents = async (bypassCache = false) => {
-    if (!currentUserRef.current) return;
-    // Stale-while-revalidate: render from cache instantly, then update with fresh data
-    if (!bypassCache) {
-      const cached = await CacheManager.get<any[]>("calendar", CACHE_TTL.CALENDAR);
-      if (cached) setCalendarEventsDb(filterAcademicCalendarEvents(cached));
-    }
+    if (!isCurrent() || !isOnline) return false;
     try {
-      const response = await apiClient("/api/calendar/events", {
-        bypassCache: true,
-        retries: 1,
-        silent: true,
+      const response = await apiClient("/api/lectures", {
+        bypassCache: true, retries: 1, silent: true, signal, requestKey,
       });
-      if (response.ok) {
-        const data = await response.json();
-        const academicEvents = Array.isArray(data) ? filterAcademicCalendarEvents(data) : [];
-        setCalendarEventsDb(academicEvents);
-        CacheManager.set("calendar", data, CACHE_TTL.CALENDAR).catch(() => {});
-        OfflineEngine.setCachedCalendarEvents(academicEvents);
-      } else {
-        throw new Error("HTTP error " + response.status);
-      }
-    } catch (e) {
-      if (!bypassCache) {
-        const cached = OfflineEngine.getCachedCalendarEvents();
-        if (cached && cached.length > 0) {
-          setCalendarEventsDb(filterAcademicCalendarEvents(cached));
-        }
-      }
+      const data = await response.json();
+      if (!isCurrent() || !Array.isArray(data)) return false;
+      setDbLectures(data);
+      setLectureCatalogStatus("ready");
+      void CacheManager.set("lectures", data, CACHE_TTL.LECTURES);
+      IDBManager.setItem("db_lectures_list_cache", data).catch(() => {});
+      try { localStorage.setItem("db_lectures_list_cache", JSON.stringify(data)); } catch {}
+      OfflineEngine.pruneCachedLectures(data.map((item) => String(item.id)));
+      return true;
+    } catch {
+      if (isCurrent()) setLectureCatalogStatus(restored || dbLectures.length > 0 ? "ready" : "error");
+      return false;
     }
   };
 
-  // Coalesce lifecycle, focus, visibility, and login refreshes. Previously
-  // each trigger started three independent Supabase requests, which made cold
-  // starts slower and caused avoidable pool pressure.
-  const refreshAcademicData = async (bypassCache = false): Promise<void> => {
-    if (academicRefreshInFlightRef.current) return academicRefreshInFlightRef.current;
-    if (bypassCache && Date.now() - lastAcademicRefreshAtRef.current < 15_000) return;
-
-    lastAcademicRefreshAtRef.current = Date.now();
-    const request = Promise.allSettled([
-      fetchMaterials(bypassCache),
-      fetchDbLectures(bypassCache),
-      fetchCalendarEvents(bypassCache),
-    ]).then(() => undefined);
-    academicRefreshInFlightRef.current = request;
-    try {
-      await request;
-    } finally {
-      academicRefreshInFlightRef.current = null;
+  const fetchCalendarEvents = async (
+    { signal, requestKey, isCurrent }: AcademicRead, restore: boolean, account: User,
+  ) => {
+    const cacheKey = accountStorageKey("academic-calendar:" + (account.studentGroup ?? "") + ":" + (account.role ?? ""), account.id);
+    if (restore) {
+      const cached = await CacheManager.get<CalendarEvent[]>(cacheKey, CACHE_TTL.CALENDAR)
+        ?? OfflineEngine.getCachedCalendarEvents();
+      if (isCurrent() && cached.length > 0) setCalendarEventsDb(filterAcademicCalendarForAccount(cached, account));
     }
+    if (!isCurrent() || !isOnline) return false;
+    const response = await apiClient("/api/calendar/events", {
+      bypassCache: true, retries: 1, silent: true, signal, requestKey,
+    });
+    const data = await response.json();
+    if (!isCurrent() || !Array.isArray(data)) return false;
+    const events = filterAcademicCalendarForAccount(data, account);
+    setCalendarEventsDb(events);
+    void CacheManager.set(cacheKey, events, CACHE_TTL.CALENDAR);
+    OfflineEngine.setCachedCalendarEvents(events);
+    return true;
   };
-  refreshAcademicDataRef.current = refreshAcademicData;
 
   const academicUserId = currentUser?.id;
   const academicStudentGroup = currentUser?.studentGroup;
-  useEffect(() => {
-    if (!academicUserId || !isActive) return;
-    refreshAcademicDataRef.current?.(false);
-  }, [academicUserId, academicStudentGroup, isActive]);
+  const academicRole = currentUser?.role;
+  const academicScope = academicUserId ? JSON.stringify([academicUserId, academicStudentGroup, academicRole]) : null;
+  useLayoutEffect(() => {
+    academicRefresh.setScope(academicScope);
+    return () => academicRefresh.setScope(null);
+  }, [academicRefresh, academicScope]);
 
-  // Presence, progress, and profile updates can replace the User object
-  // frequently. Refresh the offline pack for academic scope, activation and
-  // the existing web/native network state instead.
+  refreshAcademicDataRef.current = async (mode, resources = ["materials", "lectures", "calendar"]) => {
+    const account = currentUserRef.current;
+    if (!account || !lifecycleActiveRef.current || resumeSettlingRef.current || !isActive) return;
+    if (mode === "revalidate" && !isOnline) return;
+    const restore = mode === "restore";
+    const load = { materials: fetchMaterials, lectures: loadDbLectures, calendar: fetchCalendarEvents };
+    await Promise.all(resources.map((resource) => academicRefresh.refresh(resource, mode, (read) => {
+      const isCurrent = () => {
+        const current = currentUserRef.current;
+        return read.isCurrent() && current?.id === account.id
+          && current.studentGroup === account.studentGroup && current.role === account.role;
+      };
+      return load[resource]({ ...read, isCurrent }, restore, account);
+    })));
+  };
+  const fetchDbLectures = () => refreshAcademicDataRef.current?.("invalidate", ["lectures"]);
+
+  useEffect(() => {
+    if (!academicScope || !isActive) return;
+    void refreshAcademicDataRef.current?.("restore");
+  }, [academicScope, isActive]);
+
+  useEffect(() => {
+    if (!academicScope || !isActive || !isOnline) return;
+    void refreshAcademicDataRef.current?.("revalidate");
+    return watchVisibleAcademicRefresh(() => { void refreshAcademicDataRef.current?.("revalidate"); });
+  }, [academicScope, isActive, isOnline]);
+
+  // Keep the complete offline pack download on account/group change, resume and reconnect.
   useEffect(() => {
     if (!academicUserId || !isActive || !isOnline) return;
-    DataSyncManager.fetchAndStoreAcademicMaterials().catch(() => {});
+    const controller = new AbortController();
+    DataSyncManager.fetchAndStoreAcademicMaterials(academicUserId, academicStudentGroup, controller.signal).catch(() => {});
+    return () => controller.abort();
   }, [academicUserId, academicStudentGroup, isActive, isOnline]);
 
   useEffect(() => {
-    if (currentUser && isActive) {
+    if (academicUserId && isActive && isOnline) {
       DataSyncManager.triggerBackgroundSync().catch(() => {});
     }
-  }, [currentUser, isActive]);
+  }, [academicUserId, isActive, isOnline]);
 
-  // Window focus revalidation and background polling to keep data perfectly synchronized
-  // OPTIMIZED: Debounce focus/visibility refreshes to avoid hammering the API when the
-  // user switches tabs rapidly or the browser fires spurious visibilitychange events.
-  useEffect(() => {
-    let lastFetchAt = 0;
-    const FOCUS_DEBOUNCE_MS = 30_000; // at most one full refresh per 30s on focus/visibility
-
-    const fetchLatestData = () => {
-      if (academicUserId && isActive) {
-        const now = Date.now();
-        if (now - lastFetchAt < FOCUS_DEBOUNCE_MS) return;
-        lastFetchAt = now;
-        refreshAcademicDataRef.current?.(true);
-      }
-    };
-    
-    // 1. Revalidate on window focus
-    window.addEventListener('focus', fetchLatestData);
-    
-    // 2. Intelligent, adaptive background synchronization
-    let syncTimer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleNextSync = () => {
-      if (document.visibilityState === 'visible' && isActive) {
-        syncTimer = setTimeout(() => {
-          fetchLatestData();
-          scheduleNextSync();
-        }, 3 * 60 * 1000); // 3 minutes
-      }
-    };
-    
-    scheduleNextSync();
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchLatestData();
-        scheduleNextSync();
-      } else {
-        if (syncTimer) clearTimeout(syncTimer);
-      }
-    };
-
-    window.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('focus', fetchLatestData);
-      window.removeEventListener('visibilitychange', handleVisibility);
-      if (syncTimer) clearTimeout(syncTimer);
-    };
-  }, [academicUserId, academicStudentGroup, isActive]);
-
-  // Helper to synchronize local data with backend database
-  const syncWithBackend = async (
-    userCtx: User | null = currentUser,
-    prog: UserProgress[] = progressDb,
-  ) => {
-    if (!userCtx) return;
-
-    // Always preserve locally first to ensure lightning-fast UI responses
-    OfflineEngine.setCachedUser(userCtx);
-    OfflineEngine.setCachedProgress(prog);
-
-    try {
-      const response = await apiClient("/api/auth/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: userCtx.id,
-          user: userCtx,
-          progress: prog,
-          // Personal planner mutations are deliberately not part of this sync.
-          calendarEvents: [],
-        }),
-        // Background sync: failures are queued locally for retry and surfaced
-        // via offline-sync-status, never as a global API error toast.
-        silent: true,
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.user) {
-          setCurrentUser(data.user);
-          setActiveAccountId(data.user.id);
-          OfflineEngine.setCachedUser(data.user);
-        }
-        if (data.progress) {
-          // The server returns lecture ids that were deleted from the canonical
-          // database while this device was offline. Remove those local rows
-          // before conflict resolution so they cannot be re-queued forever.
-          const prunedLectureIds = new Set<string>(
-            Array.isArray(data.prunedLectureIds)
-              ? data.prunedLectureIds.filter((id: unknown): id is string => typeof id === "string")
-              : [],
-          );
-          const localProgress = prog.filter((item) => !prunedLectureIds.has(item.lectureId));
-          const resolved = OfflineEngine.resolveConflicts(localProgress, data.progress);
-          setProgressDb(resolved);
-          OfflineEngine.setCachedProgress(resolved);
-          try { localStorage.setItem("progress_db", JSON.stringify(resolved)); } catch {}
-        }
-        // Progress sync may return newly-created academic events. Personal
-        // planner rows are never accepted into this reconciliation path.
-        const incomingGlobal: CalendarEvent[] = data.globalCalendarEvents || [];
-        if (incomingGlobal.length > 0) {
-          setCalendarEventsDb((prev: CalendarEvent[]) => {
-            const existingIds = new Set(prev.map((e: CalendarEvent) => e.id));
-            const trulyNew = filterAcademicCalendarEvents(incomingGlobal)
-              .filter((e: CalendarEvent) => !existingIds.has(e.id));
-            if (trulyNew.length === 0) return prev; // nothing changed — no re-render
-            return [...prev, ...trulyNew];
-          });
-        }
-      } else {
-        throw new Error("HTTP synchronization failure: " + response.status);
-      }
-    } catch (e) {
-      
-      // Queue the action to run in background once connection becomes alive
+  const queueProgressSync = (account: User, local: UserProgress[], changed: UserProgress[]) => {
+    if (getActiveAccountId() !== account.id) return;
+    OfflineEngine.setCachedProgress(local);
+    if (changed.length > 0) {
       OfflineEngine.addToQueue({
         type: "UPDATE_PROGRESS",
-        payload: {
-          userId: userCtx.id,
-          progress: prog,
-        },
+        payload: { userId: account.id, progress: changed },
       });
     }
   };
+
+  useEffect(() => {
+    const applyConfirmedProgress = (event: Event) => {
+      const { userId, progress, prunedLectureIds } = (event as CustomEvent<{
+        userId: string; progress: UserProgress[]; prunedLectureIds: string[];
+      }>).detail;
+      if (currentUserRef.current?.id !== userId || getActiveAccountId() !== userId) return;
+      const pruned = new Set(prunedLectureIds);
+      setProgressDb((existing) => {
+        if (currentUserRef.current?.id !== userId || getActiveAccountId() !== userId) return existing;
+        const local = existing.filter((row) => row.userId === userId && !pruned.has(row.lectureId));
+        const resolved = OfflineEngine.resolveConflicts(local, progress.filter((row) => row.userId === userId));
+        OfflineEngine.setCachedProgress(resolved);
+        try { localStorage.setItem("progress_db", JSON.stringify(resolved)); } catch {}
+        return resolved;
+      });
+    };
+    window.addEventListener("offline-progress-reconciled", applyConfirmedProgress);
+    return () => window.removeEventListener("offline-progress-reconciled", applyConfirmedProgress);
+  }, []);
 
   // --- Initialize session states ---
   // OPTIMIZED: Synchronously hydrate from cached localStorage data so the UI
@@ -3486,7 +3330,7 @@ function AppContent({
             setActiveAccountId(parsed.id);
             setProgressDb(localProgress);
             setCalendarEventsDb(localEvents);
-            syncWithBackend(parsed, localProgress);
+            queueProgressSync(parsed, localProgress, localProgress);
             setIsInitializing(false);
           } catch (e) {
           }
@@ -4069,31 +3913,18 @@ function AppContent({
             ? "تم تحويل الواجهات تلقائياً لوضع الأرشفة غير المتصل الكلي."
             : "Loading study outlines from device memory.",
       });
-      if (status) {
-        fetchMaterials(true).catch(() => {});
-        fetchDbLectures(true).catch(() => {});
-        fetchCalendarEvents(true).catch(() => {});
-      }
     });
-
-    const handleSyncFinished = () => {
-      fetchMaterials(true).catch(() => {});
-      fetchDbLectures(true).catch(() => {});
-      fetchCalendarEvents(true).catch(() => {});
-    };
 
     const handleAcademicContentInvalidated = () => {
       CacheManager.invalidate("materials");
       CacheManager.invalidate("lectures");
-      void Promise.allSettled([fetchMaterials(true), fetchDbLectures(true)]);
+      void refreshAcademicDataRef.current?.("invalidate", ["materials", "lectures"]);
     };
 
-    window.addEventListener("offline-sync-completed", handleSyncFinished);
     window.addEventListener("academic-content-invalidated", handleAcademicContentInvalidated);
 
     return () => {
       unsubEngine();
-      window.removeEventListener("offline-sync-completed", handleSyncFinished);
       window.removeEventListener("academic-content-invalidated", handleAcademicContentInvalidated);
     };
   }, [language]);
@@ -4570,8 +4401,7 @@ const handleSignOut = useCallback(async () => {
       setProgressDb(updatedDb);
       setTimeout(() => localStorage.setItem("progress_db", JSON.stringify(updatedDb)), 0);
 
-      // Direct synchronization
-      syncWithBackend(currentUser, updatedDb);
+      queueProgressSync(currentUser, updatedDb, updatedDb.filter((row) => row.lectureId === activeLecture.id));
     },
     [activeLecture, currentUser, progressDb],
   );
@@ -4723,8 +4553,7 @@ const handleSignOut = useCallback(async () => {
       setProgressDb(updatedDb);
       setTimeout(() => localStorage.setItem("progress_db", JSON.stringify(updatedDb)), 0);
 
-      // Direct synchronization
-      syncWithBackend(currentUser, updatedDb);
+      queueProgressSync(currentUser, updatedDb, updatedDb.filter((row) => row.lectureId === activeHomeLecture.id));
     },
     [activeHomeLecture, currentUser, progressDb],
   );
@@ -7064,7 +6893,7 @@ const handleSignOut = useCallback(async () => {
                           onGroup={() => handleGroupFocusRouteChange("")}
                         />
                       ) : undefined}
-                      onRefreshLectures={() => fetchDbLectures(true)}
+                      onRefreshLectures={async () => { await fetchDbLectures(); }}
                       onBackToHome={() => handleSidebarTabClick("home")}
                       onReturnToPlanner={() => {
                         setFocusSessionRouteId(null);
@@ -7133,7 +6962,7 @@ const handleSignOut = useCallback(async () => {
                         lectures={dbLectures}
                         subjects={subjects}
                         catalogStatus={lectureCatalogStatus}
-                        onRefreshLectures={() => fetchDbLectures(true)}
+                        onRefreshLectures={async () => { await fetchDbLectures(); }}
                         workerUrl={GROUP_FOCUS_WORKER_URL}
                         routePath={groupFocusRoute}
                         onRouteChange={handleGroupFocusRouteChange}
@@ -7458,11 +7287,7 @@ const handleSignOut = useCallback(async () => {
                       onForceLocalReset={handleForceLocalReset}
                       language={language}
                       onRefreshSubjects={async () => {
-                        await Promise.all([
-                          fetchMaterials(true),
-                          fetchDbLectures(true),
-                          fetchCalendarEvents(true),
-                        ]);
+                        await refreshAcademicDataRef.current?.("invalidate");
                       }}
                       onDeleteEvent={handleDeleteEvent}
                       onEditEvent={handleEditEvent}

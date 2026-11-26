@@ -1,6 +1,7 @@
 import { IDBManager } from "../utils/indexedDB";
 
 let activeAccountId: string | null = null;
+let activeAccountGeneration = 0;
 
 const LEGACY_PERSONAL_KEYS = new Set([
   "calendar_events",
@@ -29,11 +30,17 @@ function accountPrefix(accountId: string): string {
 }
 
 export function setActiveAccountId(accountId: string | null): void {
-  activeAccountId = accountId || null;
+  const next = accountId || null;
+  if (activeAccountId !== next) activeAccountGeneration++;
+  activeAccountId = next;
 }
 
 export function getActiveAccountId(): string | null {
   return activeAccountId;
+}
+
+export function getActiveAccountGeneration(): number {
+  return activeAccountGeneration;
 }
 
 /** Return a stable per-account key. Anonymous data is never shared with users. */

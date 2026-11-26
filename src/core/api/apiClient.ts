@@ -278,6 +278,7 @@ export async function apiClient(
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
+        if (fetchOptions.signal?.aborted) throw new DOMException("The request was aborted.", "AbortError");
 
         if (isPdfExternalUrlRequest) {
           console.log("[PDF-SECURE AUTH] external-url response", {
@@ -300,6 +301,7 @@ export async function apiClient(
             else if (response.status === 403) errorMsg = "Access denied. You do not have permission.";
             else if (response.status >= 500) errorMsg = "The server is currently unavailable. Please try again later.";
           }
+          if (fetchOptions.signal?.aborted) throw new DOMException("The request was aborted.", "AbortError");
 
           if (response.status === 401 && hadAuthToken && !isPublicAuth) {
             window.dispatchEvent(new CustomEvent("app-session-expired", { detail: errorMsg }));

@@ -17,7 +17,7 @@ import path from "path";
 import fs from "fs/promises";
 import { createServer as createViteServer } from "vite";
 import cookieParser from "cookie-parser";
-import type { LectureProgress } from "@prisma/client";
+import { Prisma, type LectureProgress } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import http, { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
@@ -45,6 +45,7 @@ import { EmailService } from "./server/services/emailService.js";
 import crypto from "crypto";
 import { prisma, getPrisma, disconnectPrisma } from "./server/services/prismaClient.js";
 import { readLegacyPdf } from "./server/services/legacyPdfRead.js";
+import { syncCompactProgress } from "./server/services/compactProgressSync.js";
 import {
   enqueueMasteryD1RowDeletion,
   startPrivateD1SyncDrainer,
@@ -270,6 +271,18 @@ function eventVisibleToGroup(targetGroups: unknown, studentGroup: unknown): bool
   const groups = parseTargetGroups(targetGroups);
   const group = typeof studentGroup === "string" ? studentGroup.trim().toUpperCase() : "";
   return groups.includes("ALL") || (!!group && groups.includes(group));
+}
+
+function emitCalendarUpsert(event: { id: string; targetGroups?: unknown }): void {
+  const targetGroups = parseTargetGroups(event.targetGroups);
+  if (targetGroups.includes("ALL")) {
+    io.to("authenticated").emit("calendar_updated", { action: "upsert", event });
+    return;
+  }
+  const audience = ["admins", ...targetGroups.map((group) => `group:${group}`)];
+  io.to(audience).emit("calendar_updated", { action: "upsert", event });
+  // A group change revokes the old audience's cached entry immediately.
+  io.to("authenticated").except(audience).emit("calendar_updated", { action: "delete", eventId: event.id });
 }
 
 /**
@@ -7790,11 +7803,9 @@ app.post("/api/calendar/events", requireAdmin, catchAsync(async (req, res) => {
           io.to("group:" + targetGroup).emit("receiveSystemNotification", savedNotification);
         }
       }
-      io.to("authenticated").emit("calendar_updated", { action: "upsert", event: parsedSavedEvent });
-    } else {
-      io.to("authenticated").emit("calendar_updated", { action: "upsert", event: parsedSavedEvent });
     }
 
+    emitCalendarUpsert(parsedSavedEvent);
     invalidateMaterialsCache();
     res.status(201).json(parsedSavedEvent);
   } catch (err: any) {
@@ -7885,9 +7896,8 @@ app.put("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res) =>
 
     await syncContentUpsert("CalendarEvent", toCalendarEventContentRow(updatedEvent));
 
-    // Broadcast to all connected clients so everyone sees the change instantly
     if (io) {
-      io.to("authenticated").emit("calendar_updated", { action: "upsert", event: parsedEvent });
+      emitCalendarUpsert(parsedEvent);
     }
     invalidateMaterialsCache();
 
@@ -8359,7 +8369,12 @@ app.use("/api/admin/calendar/import", createCalendarImportRouter({
       if (syncPending) {
         logger.warn("[CalendarImport]", "Calendar event saved; content mirror sync queued for retry.");
       }
-      io.to("authenticated").emit("calendar_updated", { action: "batch-upsert", events });
+      if (events.every((event) => parseTargetGroups(event.targetGroups).includes("ALL"))) {
+        io.to("authenticated").emit("calendar_updated", { action: "batch-upsert", events });
+      } else {
+        // Clients fetch a fresh, permission-filtered schedule for mixed imports.
+        io.to("authenticated").emit("calendar_updated");
+      }
     },
   }),
 }));
@@ -11240,6 +11255,13 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
       return res.status(403).json({ error: "Access denied. You can only synchronize your own student node." });
     }
 
+    if (req.query.mode === "progress") {
+      if (authUser.id !== userId) return res.status(403).json({ error: "Progress sync requires the active account." });
+      if (progress.length > 2000) return res.status(400).json({ error: "Progress sync accepts up to 2000 records." });
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json(await syncCompactProgress(getPrisma(), authUser.id, progress));
+    }
+
     const existing = await UserService.findById(userId);
 
     if (!existing) {
@@ -11412,12 +11434,15 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
     )).filter(Boolean) as string[];
 
     const existingProgs = lectureIdsToFetch.length > 0
-      ? await prismaClient.lectureProgress.findMany({
-          where: {
-            userId: authUser.id,
-            lectureId: { in: lectureIdsToFetch }
-          }
-        })
+      ? await prismaClient.$queryRaw`
+          SELECT lecture."id" AS "lectureId", progress."lastAccessed",
+            progress."pdfCompleted", progress."notesCompleted", progress."videoCompleted",
+            progress."flashcardsCompleted", progress."quizCompleted", progress."quizScore"
+          FROM "Lecture" AS lecture
+          LEFT JOIN "LectureProgress" AS progress
+            ON progress."lectureId" = lecture."id" AND progress."userId" = ${authUser.id}
+          WHERE lecture."id" IN (${Prisma.join(lectureIdsToFetch)})
+        `
       : [];
 
     const progMap = new Map<string, any>();
@@ -11433,12 +11458,13 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
     )).filter(Boolean) as string[];
 
     const existingSRs = flashcardIdsToFetch.length > 0
-      ? await prismaClient.flashcardProgress.findMany({
-          where: {
-            userId: authUser.id,
-            flashcardId: { in: flashcardIdsToFetch }
-          }
-        })
+      ? await prismaClient.$queryRaw`
+          SELECT card."id" AS "flashcardId", progress."updatedAt", progress."status"
+          FROM "Flashcard" AS card
+          LEFT JOIN "FlashcardProgress" AS progress
+            ON progress."flashcardId" = card."id" AND progress."userId" = ${authUser.id}
+          WHERE card."id" IN (${Prisma.join(flashcardIdsToFetch)})
+        `
       : [];
 
     const srMap = new Map<string, any>();
@@ -11448,12 +11474,16 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
 
     for (const item of items) {
       const { userId, type, targetId, payload, lastUpdated } = item;
-      
+      const existingTarget = (type === "flashcard_sr" ? srMap : progMap).get(targetId);
+      if (!existingTarget) {
+        resolved.push({ id: item.id, userId, type, targetId, payload: {}, lastUpdated, synced: 1, discarded: true });
+        continue;
+      }
       const clientTime = new Date(lastUpdated).getTime();
 
       if (type === 'lecture_progress' || type === 'mcq_score') {
         const lectureId = targetId;
-        const existingProg = progMap.get(lectureId);
+        const existingProg = existingTarget.lastAccessed ? existingTarget : null;
         const serverTime = existingProg ? new Date(existingProg.lastAccessed).getTime() : 0;
 
         if (existingProg && serverTime > clientTime) {
@@ -11486,6 +11516,7 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
 
           ops.push(prismaClient.lectureProgress.upsert({
             where: { userId_lectureId: { userId, lectureId } },
+            select: { lectureId: true },
             update: {
               pdfCompleted: !!existingProg?.pdfCompleted || !!payload.pdfCompleted,
               notesCompleted: !!existingProg?.notesCompleted || !!payload.notesCompleted,
@@ -11515,7 +11546,7 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
         }
       } else if (type === 'flashcard_sr') {
         const cardId = targetId;
-        const existingSR = srMap.get(cardId);
+        const existingSR = existingTarget.updatedAt ? existingTarget : null;
         const serverTime = existingSR ? new Date(existingSR.updatedAt).getTime() : 0;
 
         if (existingSR && serverTime > clientTime) {
@@ -11536,6 +11567,7 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
 
           ops.push(prismaClient.flashcardProgress.upsert({
             where: { userId_flashcardId: { userId, flashcardId: cardId } },
+            select: { flashcardId: true },
             update: { status: newStatus, updatedAt: updatedAtDate },
             create: { userId, flashcardId: cardId, status: newStatus, updatedAt: updatedAtDate }
           }));
