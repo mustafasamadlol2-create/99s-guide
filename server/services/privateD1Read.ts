@@ -1,5 +1,5 @@
 import { logger } from "./logger.js";
-import { recordOperationalOutcome } from "../observability/metrics.js";
+import { recordEgress, recordOperationalOutcome } from "../observability/metrics.js";
 import {
   parseFocusPlanItems,
   type FocusPlanProjection,
@@ -103,6 +103,7 @@ export async function fetchPrivateReadJson<T>(
       );
     }
 
+    recordEgress("private_worker_result", { bytes: Buffer.byteLength(text) });
     return body as T;
   } finally {
     clearTimeout(timeout);
@@ -113,19 +114,35 @@ export function logPrivateReadFallback(scope: string, error: unknown): void {
   const failureCode = error instanceof PrivateD1ProjectionReadError
     ? error.code.toUpperCase().replace(/[^A-Z0-9_]/gu, "_")
     : "WORKER_UNAVAILABLE";
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    recordEgress("private_fallback_timeout");
+  } else if (error instanceof Error && /^Private D1 read (?:returned non-JSON )?HTTP (?:401|403)\b/u.test(error.message)) {
+    recordEgress("private_fallback_auth");
+  } else if (error instanceof PrivateD1ProjectionReadError && error.code === "scope-mismatch") {
+    recordEgress("private_fallback_scope");
+  } else if ((error instanceof PrivateD1ProjectionReadError && error.code === "malformed") ||
+    (error instanceof Error && /^Private D1 read returned non-JSON|^Invalid .+payload\.$/u.test(error.message))) {
+    recordEgress("private_fallback_invalid");
+  } else {
+    recordEgress("private_fallback_unavailable");
+  }
   recordOperationalOutcome({
     feature: "private_d1",
     operation: "fallback",
     result: "fallback",
   });
-  logger.warn(
-    "[PrivateD1Read]",
-    `${scope} failed; falling back to PostgreSQL`,
-    {
-      errorCode: "STUDY_D1_PROJECTION_STALE",
-      details: { failureCode },
-    },
-  );
+  try {
+    logger.warn(
+      "[PrivateD1Read]",
+      `${scope} failed; falling back to PostgreSQL`,
+      {
+        errorCode: "STUDY_D1_PROJECTION_STALE",
+        details: { failureCode },
+      },
+    );
+  } catch {
+    // Logging must never prevent a canonical fallback.
+  }
 }
 
 export type FocusPlanReadProjection = Omit<FocusPlanProjection, "itemsJson"> & {

@@ -388,6 +388,7 @@ test("the same snapshot and server timestamp produce byte-identical DTOs", () =>
 
 test("bounded source reads are user-scoped, capped, and read-only", async () => {
   const calls: Array<{ model: string; args: Record<string, any> }> = [];
+  const eventReads: Array<{ query: string; bindings: unknown[] }> = [];
   const delegate = (model: string) => ({
     findMany: async (args: Record<string, any>) => {
       calls.push({ model, args });
@@ -397,7 +398,10 @@ test("bounded source reads are user-scoped, capped, and read-only", async () => 
   const database = {
     focusSession: delegate("focusSession"),
     groupFocusParticipantSummary: delegate("groupFocusParticipantSummary"),
-    studyEvent: delegate("studyEvent"),
+    $queryRaw: async (parts: TemplateStringsArray, ...bindings: unknown[]) => {
+      eventReads.push({ query: parts.join("?"), bindings });
+      return [];
+    },
     recallAttempt: delegate("recallAttempt"),
     lectureMastery: {
       ...delegate("lectureMastery"),
@@ -423,7 +427,18 @@ test("bounded source reads are user-scoped, capped, and read-only", async () => 
 
   await read("authenticated-user");
 
-  assert.equal(calls.length, 8);
+  assert.equal(calls.length + eventReads.length, 8);
+  assert.equal(eventReads.length, 2);
+  assert.deepEqual(eventReads.map(({ bindings }) => bindings[3]), ["mcq_attempted", "flashcard_reviewed"]);
+  for (const { query, bindings } of eventReads) {
+    assert.match(query, /"userId" = \? AND "eventType" = \?/);
+    assert.match(query, /"receivedAt" BETWEEN/);
+    assert.match(query, /LIMIT \?/);
+    assert.match(query, /jsonb_build_object\(\?::text, "payload"->\?::text\)/);
+    assert.doesNotMatch(query, /\b(?:UPDATE|INSERT|DELETE)\b/i);
+    assert.equal(bindings[2], "authenticated-user");
+    assert.equal(bindings[6], 10_001);
+  }
   for (const call of calls) {
     assert.equal(call.args.where.userId, "authenticated-user");
   }

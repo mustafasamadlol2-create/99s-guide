@@ -45,6 +45,7 @@ import { EmailService } from "./server/services/emailService.js";
 import crypto from "crypto";
 import { prisma, getPrisma, disconnectPrisma } from "./server/services/prismaClient.js";
 import { readLegacyPdf } from "./server/services/legacyPdfRead.js";
+import { readCanonicalQaFeed } from "./server/features/qa/read.js";
 import { syncCompactProgress } from "./server/services/compactProgressSync.js";
 import {
   enqueueMasteryD1RowDeletion,
@@ -172,7 +173,7 @@ import { logger, getRecentLogs } from "./server/services/logger.js";
 import { authMonitor } from "./server/services/authMonitor.js";
 import { dbMonitor } from "./server/services/dbMonitor.js";
 import { getStudyEngineHealth } from "./server/observability/health.js";
-import { recordOperationalOutcome } from "./server/observability/metrics.js";
+import { recordEgress, recordOperationalOutcome } from "./server/observability/metrics.js";
 import {
   PDF_DOWNLOAD_SCOPE,
   createPdfDownloadToken,
@@ -650,6 +651,8 @@ async function postContentSyncMutation(
   const config = getContentSyncConfig();
   if (!config) throw new Error("CONTENT_WORKER_BASE_URL or CONTENT_SYNC_SECRET is not configured.");
 
+  const body = JSON.stringify(mutation);
+  recordEgress("content_sync_attempt", { bytes: Buffer.byteLength(body) });
   const response = await fetchWithTimeout(
     `${config.workerBaseUrl}/internal/content-sync`,
     {
@@ -658,7 +661,7 @@ async function postContentSyncMutation(
         "Content-Type": "application/json",
         "X-Content-Sync-Secret": config.secret,
       },
-      body: JSON.stringify(mutation),
+      body,
     },
     timeoutMs,
   );
@@ -676,6 +679,7 @@ async function persistContentSyncOutbox(mutation: ContentSyncMutation): Promise<
     where: { key },
     update: { value: JSON.stringify(mutation), updatedAt: now },
     create: { key, value: JSON.stringify(mutation), updatedAt: now },
+    select: { key: true },
   });
 }
 
@@ -1963,6 +1967,7 @@ async function migrateLegacyLocalFilesToDb(): Promise<void> {
         await prismaClient.material.update({
           where: { id: m.id },
           data: { fileData: buf },
+          select: { id: true },
         });
         migrated += 1;
       } catch (e: any) {
@@ -5886,6 +5891,7 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
 // Notifications Endpoints
 app.get("/api/notifications", requireUser, catchAsync(async (req, res) => {
   try {
+    res.setHeader("Cache-Control", "private, no-store");
     const currentUser = (req as any).user;
     const currentUserId = currentUser?.id;
     const currentUserGroup: string | null = currentUser?.studentGroup || null;
@@ -5944,7 +5950,10 @@ app.delete("/api/notifications/:id", requireUser, catchAsync(async (req, res) =>
   try {
     const prismaClient = getPrisma();
     const user = (req as any).user;
-    const notification = await prismaClient.notification.findUnique({ where: { id: req.params.id } });
+    const notification = await prismaClient.notification.findUnique({
+      where: { id: req.params.id },
+      select: { targetUserId: true },
+    });
     if (!notification) return res.status(404).json({ error: "Notification not found." });
 
     // Users may only delete notifications addressed to them.
@@ -5952,11 +5961,11 @@ app.delete("/api/notifications/:id", requireUser, catchAsync(async (req, res) =>
     const isAdmin = user.role === "admin" || user.role === "owner";
     const isOwner = notification.targetUserId === user.id;
     if (!isOwner && !isAdmin) {
-      console.log(JSON.stringify({ timestamp: new Date().toISOString(), event: "UNAUTHORIZED_NOTIFICATION_DELETE", actor: user.email, notificationId: req.params.id }));
+      console.log(JSON.stringify({ timestamp: new Date().toISOString(), event: "UNAUTHORIZED_NOTIFICATION_DELETE" }));
       return res.status(403).json({ error: "Not authorized to delete this notification." });
     }
 
-    await prismaClient.notification.delete({ where: { id: req.params.id } });
+    await prismaClient.notification.delete({ where: { id: req.params.id }, select: { id: true } });
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error" });
@@ -6062,6 +6071,7 @@ async function removeDeviceTokensForUser(userId: string): Promise<void> {
 
 // GET /api/qa/:lectureId — fetch questions (hidden deleted; hide blocked-user content for caller)
 app.get("/api/qa/:lectureId", requireUser, catchAsync(async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
   const userId = (req as any).user.id;
   const { lectureId } = req.params;
 
@@ -6084,55 +6094,8 @@ app.get("/api/qa/:lectureId", requireUser, catchAsync(async (req, res) => {
     res.setHeader("X-Private-QA-Read-Source", "supabase");
   }
 
-  const prismaClient = getPrisma();
-  const [blocks, questions] = await Promise.all([
-    prismaClient.userBlock.findMany({
-      where: { blockerId: userId },
-      select: { blockedId: true },
-    }),
-    prismaClient.qaQuestion.findMany({
-      where: { lectureId, isDeleted: false },
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: { select: { id: true, name: true, avatar: true, avatarUrl: true } },
-        answers: {
-          where: { isDeleted: false },
-          orderBy: { createdAt: "asc" },
-          take: 200,
-          include: {
-            user: { select: { id: true, name: true, avatar: true, avatarUrl: true } },
-          },
-        },
-      },
-    }),
-  ]);
-
-  const blockedIds = new Set(blocks.map((b: any) => b.blockedId));
-  const mapped = questions.map((q: any) => ({
-    id: q.id,
-    lectureId: q.lectureId,
-    user_id: q.userId,
-    userName: q.user?.name || "Unknown",
-    userAvatar: q.user?.avatarUrl || q.user?.avatar || "",
-    content: q.content,
-    createdAt: q.createdAt.toISOString(),
-    upvotes: q.upvotes,
-    isBlocked: blockedIds.has(q.userId),
-    answers: q.answers.map((a: any) => ({
-      id: a.id,
-      questionId: a.questionId,
-      userId: a.userId,
-      userName: a.user?.name || "Unknown",
-      userAvatar: a.user?.avatarUrl || a.user?.avatar || "",
-      content: a.content,
-      createdAt: a.createdAt.toISOString(),
-      upvotes: a.upvotes,
-      isBest: a.isBest,
-      isBlocked: blockedIds.has(a.userId),
-    })),
-  }));
-
-  return res.json(mapped);
+  const questions = await readCanonicalQaFeed(getPrisma(), lectureId, userId);
+  return res.json(questions);
 }));
 
 // POST /api/qa/:lectureId/questions — post a new question
@@ -6201,13 +6164,16 @@ app.put("/api/qa/questions/:id", requireUser, catchAsync(async (req, res) => {
     return res.status(400).json({ error: "Content is required." });
   }
 
-  const question = await prismaClient.qaQuestion.findUnique({ where: { id } });
+  const question = await prismaClient.qaQuestion.findUnique({
+    where: { id }, select: { isDeleted: true, userId: true, lectureId: true },
+  });
   if (!question || question.isDeleted) return res.status(404).json({ error: "Question not found." });
   if (question.userId !== userId) return res.status(403).json({ error: "Not authorized." });
 
   const updated = await prismaClient.qaQuestion.update({
     where: { id },
     data: { content: content.trim() },
+    select: { id: true, content: true },
   });
   io.to("authenticated").emit("qa_question_updated", { id: updated.id, content: updated.content, lectureId: question.lectureId });
   res.json({ id: updated.id, content: updated.content });
@@ -6219,13 +6185,15 @@ app.delete("/api/qa/questions/:id", requireUser, catchAsync(async (req, res) => 
   const user = (req as any).user;
   const { id } = req.params;
 
-  const question = await prismaClient.qaQuestion.findUnique({ where: { id } });
+  const question = await prismaClient.qaQuestion.findUnique({
+    where: { id }, select: { isDeleted: true, userId: true, lectureId: true },
+  });
   if (!question || question.isDeleted) return res.status(404).json({ error: "Question not found." });
 
   const isAdmin = user.role === "admin" || user.role === "owner";
   if (question.userId !== user.id && !isAdmin) return res.status(403).json({ error: "Not authorized." });
 
-  await prismaClient.qaQuestion.update({ where: { id }, data: { isDeleted: true } });
+  await prismaClient.qaQuestion.update({ where: { id }, data: { isDeleted: true }, select: { id: true } });
 
   // Audit log: only record when an admin deletes (not self-deletion)
   if (isAdmin) {
@@ -6252,18 +6220,20 @@ app.post("/api/qa/questions/:id/upvote", requireUser, catchAsync(async (req, res
 
   if (delta !== 1 && delta !== -1) return res.status(400).json({ error: "delta must be 1 or -1." });
   const updated = await prismaClient.$transaction(async (tx: any) => {
-    const question = await tx.qaQuestion.findUnique({ where: { id } });
+    const select = { id: true, upvotes: true, lectureId: true } as const;
+    const question = await tx.qaQuestion.findUnique({ where: { id }, select: { ...select, isDeleted: true } });
     if (!question || question.isDeleted) return null;
     const vote = await tx.qaVote.findUnique({
       where: { userId_targetType_targetId: { userId, targetType: "question", targetId: id } },
+      select: { id: true },
     });
     if (vote) {
-      await tx.qaVote.delete({ where: { id: vote.id } });
-      return tx.qaQuestion.update({ where: { id }, data: { upvotes: Math.max(0, question.upvotes - 1) } });
+      await tx.qaVote.delete({ where: { id: vote.id }, select: { id: true } });
+      return tx.qaQuestion.update({ where: { id }, data: { upvotes: Math.max(0, question.upvotes - 1) }, select });
     }
     if (delta === -1) return question;
-    await tx.qaVote.create({ data: { userId, targetType: "question", targetId: id, value: 1 } });
-    return tx.qaQuestion.update({ where: { id }, data: { upvotes: question.upvotes + 1 } });
+    await tx.qaVote.create({ data: { userId, targetType: "question", targetId: id, value: 1 }, select: { id: true } });
+    return tx.qaQuestion.update({ where: { id }, data: { upvotes: question.upvotes + 1 }, select });
   });
   if (!updated) return res.status(404).json({ error: "Question not found." });
   io.to("authenticated").emit("qa_question_updated", { id: updated.id, upvotes: updated.upvotes, lectureId: updated.lectureId });
@@ -6300,7 +6270,9 @@ app.post("/api/qa/questions/:questionId/answers", requireUser, catchAsync(async 
     return res.status(400).json({ error: "Content must be under 2000 characters." });
   }
 
-  const question = await prismaClient.qaQuestion.findUnique({ where: { id: questionId } });
+  const question = await prismaClient.qaQuestion.findUnique({
+    where: { id: questionId }, select: { isDeleted: true, lectureId: true },
+  });
   if (!question || question.isDeleted) return res.status(404).json({ error: "Question not found." });
 
   const answer = await prismaClient.qaAnswer.create({
@@ -6335,13 +6307,16 @@ app.put("/api/qa/answers/:id", requireUser, catchAsync(async (req, res) => {
     return res.status(400).json({ error: "Content is required." });
   }
 
-  const answer = await prismaClient.qaAnswer.findUnique({ where: { id } });
+  const answer = await prismaClient.qaAnswer.findUnique({
+    where: { id }, select: { isDeleted: true, userId: true, questionId: true },
+  });
   if (!answer || answer.isDeleted) return res.status(404).json({ error: "Answer not found." });
   if (answer.userId !== userId) return res.status(403).json({ error: "Not authorized." });
 
   const updated = await prismaClient.qaAnswer.update({
     where: { id },
     data: { content: content.trim() },
+    select: { id: true, content: true },
   });
   io.to("authenticated").emit("qa_answer_updated", { id: updated.id, content: updated.content, questionId: answer.questionId });
   res.json({ id: updated.id, content: updated.content });
@@ -6353,13 +6328,15 @@ app.delete("/api/qa/answers/:id", requireUser, catchAsync(async (req, res) => {
   const user = (req as any).user;
   const { id } = req.params;
 
-  const answer = await prismaClient.qaAnswer.findUnique({ where: { id } });
+  const answer = await prismaClient.qaAnswer.findUnique({
+    where: { id }, select: { isDeleted: true, userId: true, questionId: true },
+  });
   if (!answer || answer.isDeleted) return res.status(404).json({ error: "Answer not found." });
 
   const isAdmin = user.role === "admin" || user.role === "owner";
   if (answer.userId !== user.id && !isAdmin) return res.status(403).json({ error: "Not authorized." });
 
-  await prismaClient.qaAnswer.update({ where: { id }, data: { isDeleted: true } });
+  await prismaClient.qaAnswer.update({ where: { id }, data: { isDeleted: true }, select: { id: true } });
 
   // Audit log: only record when an admin deletes (not self-deletion)
   if (isAdmin) {
@@ -6386,18 +6363,20 @@ app.post("/api/qa/answers/:id/upvote", requireUser, catchAsync(async (req, res) 
 
   if (delta !== 1 && delta !== -1) return res.status(400).json({ error: "delta must be 1 or -1." });
   const updated = await prismaClient.$transaction(async (tx: any) => {
-    const answer = await tx.qaAnswer.findUnique({ where: { id } });
+    const select = { id: true, upvotes: true, questionId: true } as const;
+    const answer = await tx.qaAnswer.findUnique({ where: { id }, select: { ...select, isDeleted: true } });
     if (!answer || answer.isDeleted) return null;
     const vote = await tx.qaVote.findUnique({
       where: { userId_targetType_targetId: { userId, targetType: "answer", targetId: id } },
+      select: { id: true },
     });
     if (vote) {
-      await tx.qaVote.delete({ where: { id: vote.id } });
-      return tx.qaAnswer.update({ where: { id }, data: { upvotes: Math.max(0, answer.upvotes - 1) } });
+      await tx.qaVote.delete({ where: { id: vote.id }, select: { id: true } });
+      return tx.qaAnswer.update({ where: { id }, data: { upvotes: Math.max(0, answer.upvotes - 1) }, select });
     }
     if (delta === -1) return answer;
-    await tx.qaVote.create({ data: { userId, targetType: "answer", targetId: id, value: 1 } });
-    return tx.qaAnswer.update({ where: { id }, data: { upvotes: answer.upvotes + 1 } });
+    await tx.qaVote.create({ data: { userId, targetType: "answer", targetId: id, value: 1 }, select: { id: true } });
+    return tx.qaAnswer.update({ where: { id }, data: { upvotes: answer.upvotes + 1 }, select });
   });
   if (!updated) return res.status(404).json({ error: "Answer not found." });
   io.to("authenticated").emit("qa_answer_updated", { id: updated.id, upvotes: updated.upvotes, questionId: updated.questionId });
@@ -6413,7 +6392,7 @@ app.patch("/api/qa/answers/:id/best", requireUser, catchAsync(async (req, res) =
 
   const answer = await prismaClient.qaAnswer.findUnique({
     where: { id },
-    include: { question: true },
+    select: { isDeleted: true, questionId: true, question: { select: { userId: true } } },
   });
   if (!answer || answer.isDeleted) return res.status(404).json({ error: "Answer not found." });
 
@@ -6430,7 +6409,9 @@ app.patch("/api/qa/answers/:id/best", requireUser, catchAsync(async (req, res) =
     });
   }
 
-  const updated = await prismaClient.qaAnswer.update({ where: { id }, data: { isBest: !!isBest } });
+  const updated = await prismaClient.qaAnswer.update({
+    where: { id }, data: { isBest: !!isBest }, select: { id: true, isBest: true },
+  });
   io.to("authenticated").emit("qa_answer_updated", { id: updated.id, isBest: updated.isBest, questionId: answer.questionId });
   res.json({ id: updated.id, isBest: updated.isBest });
 }));

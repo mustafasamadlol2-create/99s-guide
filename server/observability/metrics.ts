@@ -1,8 +1,11 @@
 import {
+  EGRESS_CATEGORIES,
   OPERATIONAL_ERROR_CODES,
   ROUTE_FAMILIES,
   type OperationalErrorCode,
   type RouteFamily,
+  type EgressCategory,
+  type EgressObservation,
 } from "./types.js";
 
 const WINDOW_MINUTES = 15;
@@ -10,6 +13,7 @@ const MAX_BUCKETS = WINDOW_MINUTES;
 const DURATION_BUCKETS = [10, 50, 100, 250, 500, 1_000, 2_000, 5_000, 10_000] as const;
 const routeFamilySet = new Set<string>(ROUTE_FAMILIES);
 const errorCodeSet = new Set<string>(OPERATIONAL_ERROR_CODES);
+const egressCategorySet = new Set<string>(EGRESS_CATEGORIES);
 
 type RequestCounts = {
   requests: number;
@@ -56,6 +60,7 @@ type MinuteBucket = {
   routes: Map<RouteFamily, RequestCounts>;
   errors: Map<string, ErrorCounts>;
   operations: Map<string, OperationCounts>;
+  egress: Map<EgressCategory, EgressObservation>;
 };
 
 const buckets: Array<MinuteBucket | null> = Array.from({ length: MAX_BUCKETS }, () => null);
@@ -65,7 +70,7 @@ function safeBucket(now: number): MinuteBucket {
   const index = ((minute % MAX_BUCKETS) + MAX_BUCKETS) % MAX_BUCKETS;
   let bucket = buckets[index];
   if (!bucket || bucket.minute !== minute) {
-    bucket = { minute, routes: new Map(), errors: new Map(), operations: new Map() };
+    bucket = { minute, routes: new Map(), errors: new Map(), operations: new Map(), egress: new Map() };
     buckets[index] = bucket;
   }
   return bucket;
@@ -143,7 +148,39 @@ export function routeFamilyForPath(path: string): RouteFamily {
   if (/^\/api\/me\/study-insights(?:\/|$)/u.test(path)) return "STUDY_INSIGHTS";
   if (/^\/api\/me\/study-data\/ask(?:\/|$)/u.test(path)) return "ASK_STUDY_DATA";
   if (/^\/api\/admin\/owner-analytics(?:\/|$)/u.test(path)) return "OWNER_ANALYTICS";
+  if (/^\/api\/(?:auth|user|users)(?:\/|$)/u.test(path)) return "ACCOUNT";
+  if (/^\/api\/(?:qa|my-blocked-comments)(?:\/|$)/u.test(path)) return "QA";
+  if (/^\/api\/notifications(?:\/|$)/u.test(path)) return "NOTIFICATIONS";
+  if (/^\/api\/(?:materials\/pdf|module-resources|resources\/multipart|upload)(?:\/|$)/u.test(path)) return "FILES";
+  if (/^\/api\/(?:progress|videos\/watch|flashcard-progress|lecture-progress)(?:\/|$)/u.test(path)) return "PROGRESS";
+  if (/^\/api\/(?:lectures|materials|search|calendar|mcqs|flashcards)(?:\/|$)/u.test(path)) return "ACADEMIC_CONTENT";
+  if (/^\/api\/(?:admin\/)?(?:health|ready|study-health)(?:\/|$)/u.test(path)) return "HEALTH";
   return "GENERAL";
+}
+
+function sumObserved(left: number | null, right: number | null): number | null {
+  return left === null && right === null ? null : (left ?? 0) + (right ?? 0);
+}
+
+export function recordEgress(
+  category: EgressCategory,
+  input: { rows?: number; bytes?: number; at?: number } = {},
+): void {
+  try {
+    if (!egressCategorySet.has(category)) return;
+    const metric = safeBucket(Number.isFinite(input.at) ? input.at! : Date.now()).egress;
+    const value = (count: number | undefined) =>
+      Number.isSafeInteger(count) && count! >= 0 ? count! : null;
+    const previous = metric.get(category);
+    metric.set(category, {
+      category,
+      observations: (previous?.observations ?? 0) + 1,
+      rows: sumObserved(previous?.rows ?? null, value(input.rows)),
+      bytes: sumObserved(previous?.bytes ?? null, value(input.bytes)),
+    });
+  } catch {
+    // Diagnostic measurements never participate in routing or delivery.
+  }
 }
 
 export function recordHttpRequest(input: {
@@ -268,6 +305,7 @@ export function getOperationalMetricsSnapshot(now = Date.now()) {
   const routeTotals = new Map<RouteFamily, RequestCounts>();
   const errorTotals = new Map<string, ErrorCounts>();
   const operationTotals = new Map<string, OperationCounts>();
+  const egressTotals = new Map<EgressCategory, EgressObservation>();
 
   for (const bucket of active) {
     for (const [family, counts] of bucket.routes) {
@@ -305,6 +343,15 @@ export function getOperationalMetricsSnapshot(now = Date.now()) {
       if (existing) existing.count += operation.count;
       else operationTotals.set(key, { ...operation });
     }
+    for (const [category, observation] of bucket.egress) {
+      const previous = egressTotals.get(category);
+      egressTotals.set(category, {
+        category,
+        observations: (previous?.observations ?? 0) + observation.observations,
+        rows: sumObserved(previous?.rows ?? null, observation.rows),
+        bytes: sumObserved(previous?.bytes ?? null, observation.bytes),
+      });
+    }
   }
 
   const byFeature = [...routeTotals.entries()]
@@ -335,6 +382,7 @@ export function getOperationalMetricsSnapshot(now = Date.now()) {
       p99: percentileFromHistogram(totalHistogram, 0.99),
     },
     byFeature,
+    egress: [...egressTotals.values()].sort((a, b) => a.category.localeCompare(b.category)),
     recentErrors: [...errorTotals.values()]
       .sort((left, right) => right.lastOccurredAt - left.lastOccurredAt)
       .slice(0, 20)

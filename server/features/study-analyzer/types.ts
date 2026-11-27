@@ -318,7 +318,7 @@ export type StudyAnalyzerEventRow = {
   source: string;
   evidenceClass: string;
   privacyClass: string;
-  occurredAt: Date;
+  occurredAt?: Date;
   receivedAt: Date;
   lectureId: string | null;
   mcqId: string | null;
@@ -336,8 +336,8 @@ export type StudyAnalyzerRecallRow = {
   status: string;
   presentedAt: Date;
   answeredAt: Date | null;
-  skippedAt: Date | null;
-  expiredAt: Date | null;
+  skippedAt?: Date | null;
+  expiredAt?: Date | null;
   outcome: string | null;
   issuanceSource: string | null;
   evidenceClass: string;
@@ -361,9 +361,9 @@ export type StudyAnalyzerGroupFocusRow = {
   verifiedFocusSeconds: number;
   effectiveLecture?: { mainSubject: string | null } | null;
   run: {
-    runtimeStartedAt: Date;
+    runtimeStartedAt?: Date;
     runtimeEndedAt: Date;
-    terminalReason: string;
+    terminalReason?: string;
   };
 };
 

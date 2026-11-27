@@ -6,6 +6,7 @@ import {
   resolveStudyAnalyzerWindows,
 } from "./dateWindows.js";
 import { buildStudyAnalyzerDto } from "./calculations.js";
+import { readStudyAnalyzerEvents } from "./eventReads.js";
 import { STUDY_ANALYZER_MAX_SOURCE_ROWS, STUDY_ANALYZER_LOOKBACK_DAYS } from "./constants.js";
 import type {
   StudyAnalyzerDto,
@@ -23,7 +24,7 @@ type StudyAnalyzerDatabase = Pick<
   PrismaClient,
   | "focusSession"
   | "groupFocusParticipantSummary"
-  | "studyEvent"
+  | "$queryRaw"
   | "recallAttempt"
   | "lectureMastery"
   | "lectureRetention"
@@ -150,9 +151,7 @@ export function createStudyAnalyzerService(dependencies: {
             effectiveLecture: { select: { mainSubject: true } },
             run: {
               select: {
-                runtimeStartedAt: true,
                 runtimeEndedAt: true,
-                terminalReason: true,
               },
             },
           },
@@ -164,66 +163,16 @@ export function createStudyAnalyzerService(dependencies: {
         queryFrom,
         complete: flags.STUDY_EVENTS_ENABLED,
         timestampOf: (row) => row.receivedAt,
-        query: () => database.studyEvent.findMany({
-          where: {
-            userId,
-            eventType: "mcq_attempted",
-            receivedAt: { gte: queryFrom, lte: asOf },
-          },
-          select: {
-            id: true,
-            eventType: true,
-            source: true,
-            evidenceClass: true,
-            privacyClass: true,
-            occurredAt: true,
-            receivedAt: true,
-            lectureId: true,
-            mcqId: true,
-            flashcardId: true,
-            payload: true,
-            mcq: {
-              select: {
-                lectureId: true,
-                lecture: { select: { mainSubject: true } },
-              },
-            },
-          },
-          orderBy: [{ receivedAt: "desc" }, { id: "desc" }],
-          take: maximum,
+        query: () => readStudyAnalyzerEvents(database, {
+          userId, eventType: "mcq_attempted", from: queryFrom, through: asOf, limit: maximum,
         }),
       }),
       readSlice<StudyAnalyzerEventRow>({
         queryFrom,
         complete: flags.STUDY_EVENTS_ENABLED,
         timestampOf: (row) => row.receivedAt,
-        query: () => database.studyEvent.findMany({
-          where: {
-            userId,
-            eventType: "flashcard_reviewed",
-            receivedAt: { gte: queryFrom, lte: asOf },
-          },
-          select: {
-            id: true,
-            eventType: true,
-            source: true,
-            evidenceClass: true,
-            privacyClass: true,
-            occurredAt: true,
-            receivedAt: true,
-            lectureId: true,
-            mcqId: true,
-            flashcardId: true,
-            payload: true,
-            flashcard: {
-              select: {
-                lectureId: true,
-                lecture: { select: { mainSubject: true } },
-              },
-            },
-          },
-          orderBy: [{ receivedAt: "desc" }, { id: "desc" }],
-          take: maximum,
+        query: () => readStudyAnalyzerEvents(database, {
+          userId, eventType: "flashcard_reviewed", from: queryFrom, through: asOf, limit: maximum,
         }),
       }),
       readSlice<StudyAnalyzerRecallRow>({
@@ -248,8 +197,6 @@ export function createStudyAnalyzerService(dependencies: {
             status: true,
             presentedAt: true,
             answeredAt: true,
-            skippedAt: true,
-            expiredAt: true,
             outcome: true,
             issuanceSource: true,
             evidenceClass: true,

@@ -1209,12 +1209,15 @@ function AppContent({
   // Sync historical notifications from the database
   useEffect(() => {
     if (!currentUser) return; // Prevent 401 unauthenticated requests
+    const notificationAccount = currentUser.id;
+    let active = true;
 
     const fetchDbNotifications = async () => {
       try {
         const res = await apiClient("/api/notifications");
         if (res.ok) {
           const dbNotifs = await res.json();
+          if (!active || getActiveAccountId() !== notificationAccount) return;
           const mapped: AppNotification[] = dbNotifs.map((n: any) => {
             let nType: any = "system";
             if (typeof n.title === "string") {
@@ -1285,6 +1288,7 @@ function AppContent({
     };
 
     fetchDbNotifications();
+    return () => { active = false; };
   }, [currentUser?.id]);
 
   // Handle activeToast auto-dismiss
@@ -4177,6 +4181,7 @@ function AppContent({
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.user) {
+            if (data.user.studentGroup !== currentUser.studentGroup) clearApiCache();
             const mergedUser = {
               ...data.user,
               // Respect an explicit empty avatar returned after deletion. Using || here

@@ -1,5 +1,6 @@
 import { getPrisma } from "./prismaClient.js";
 import { logger } from "./logger.js";
+import { recordEgress } from "../observability/metrics.js";
 import {
   classifyOutboxDeliveryFailure,
   OUTBOX_MAX_DELIVERY_ATTEMPTS,
@@ -350,6 +351,7 @@ export async function enqueuePrivateD1Projection(
   ) {
     throw new Error("Private D1 projection outbox did not return a valid revision.");
   }
+  if (input.entity === "GamificationSnapshot") recordEgress("gamification_snapshot_enqueue");
   return revision;
 }
 
@@ -720,6 +722,9 @@ export async function postPrivateD1SyncMutation(
         failureCode: "INVALID_PAYLOAD",
       });
     }
+    const bytes = Buffer.byteLength(body);
+    recordEgress("private_outbox_send", { bytes });
+    if (row.entity === "GamificationSnapshot") recordEgress("gamification_snapshot_send", { bytes });
     const response = await fetch(`${config.baseUrl}/internal/private-sync`, {
       method: "POST",
       headers: {
@@ -960,12 +965,16 @@ export async function drainPrivateD1SyncOutbox(): Promise<void> {
       }
     } else {
       const rows = await leasePrivateD1SyncOutboxBatch();
+      recordEgress("private_outbox_poll", { rows: rows.length });
       batchWasFull = rows.length === BATCH_SIZE;
 
       for (const row of rows) {
         try {
           await postPrivateD1SyncMutation(row);
-          await acknowledgePrivateD1SyncOutboxRow(row);
+          const acknowledged = await acknowledgePrivateD1SyncOutboxRow(row);
+          if (acknowledged === 1 && row.entity === "GamificationSnapshot") {
+            recordEgress("gamification_snapshot_delivered");
+          }
         } catch (error) {
           const failure = classifyOutboxDeliveryFailure(error, row.attempts);
           await markPrivateD1SyncOutboxRowFailure(row, error);

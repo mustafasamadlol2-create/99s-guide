@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { recordEgress } from "../observability/metrics.js";
 
 type PdfMetadata = {
   type: string;
@@ -39,6 +40,7 @@ async function readPdfBody(tx: Prisma.TransactionClient, id: string, start: numb
     WHERE "id" = ${id}
   `;
   if (row?.bytes?.byteLength !== length) throw new Error("Incomplete legacy PDF read.");
+  recordEgress("legacy_postgres_pdf", { rows: 1, bytes: length });
   return Buffer.isBuffer(row.bytes) ? row.bytes : Buffer.from(row.bytes);
 }
 

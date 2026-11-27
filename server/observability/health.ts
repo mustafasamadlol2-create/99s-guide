@@ -497,6 +497,7 @@ async function computeSnapshot(
       latencyMs: metrics.latencyMs,
       byFeature: metrics.byFeature,
       outcomes: metrics.outcomes,
+      egress: metrics.egress,
       recentErrors: metrics.recentErrors,
     },
   };
@@ -585,6 +586,7 @@ export async function getStudyEngineHealth(options: {
           latencyMs: metrics.latencyMs,
           byFeature: metrics.byFeature,
           outcomes: metrics.outcomes,
+          egress: metrics.egress,
           recentErrors: metrics.recentErrors,
         },
       } satisfies SystemHealthSnapshot;

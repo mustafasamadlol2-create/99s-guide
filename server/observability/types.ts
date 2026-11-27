@@ -20,10 +20,36 @@ export const ROUTE_FAMILIES = [
   "STUDY_INSIGHTS",
   "ASK_STUDY_DATA",
   "OWNER_ANALYTICS",
+  "ACCOUNT",
+  "ACADEMIC_CONTENT",
+  "FILES",
+  "PROGRESS",
+  "QA",
+  "NOTIFICATIONS",
+  "HEALTH",
   "GENERAL",
 ] as const;
 
 export type RouteFamily = (typeof ROUTE_FAMILIES)[number];
+
+export const EGRESS_CATEGORIES = [
+  "content_d1_response", "content_postgres_fallback", "content_postgres_response",
+  "private_d1_response", "private_postgres_fallback", "private_postgres_response",
+  "private_worker_result", "private_fallback_timeout", "private_fallback_auth",
+  "private_fallback_invalid", "private_fallback_scope", "private_fallback_unavailable",
+  "qa_postgres_result", "analyzer_event_result", "legacy_postgres_pdf",
+  "content_sync_attempt", "private_outbox_poll", "private_outbox_send",
+  "gamification_snapshot_send", "gamification_snapshot_enqueue", "gamification_snapshot_delivered",
+] as const;
+
+export type EgressCategory = (typeof EGRESS_CATEGORIES)[number];
+
+export type EgressObservation = {
+  category: EgressCategory;
+  observations: number;
+  rows: number | null;
+  bytes: number | null;
+};
 
 export const OPERATIONAL_ERROR_CODES = [
   "HTTP_5XX",
@@ -97,6 +123,7 @@ export interface SystemHealthSnapshot {
       result: string;
       count: number;
     }>;
+    egress?: EgressObservation[];
     recentErrors: Array<{
       service: string;
       feature: string;

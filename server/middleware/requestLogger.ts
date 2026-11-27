@@ -8,7 +8,8 @@
 
 import express from "express";
 import { logger } from "../services/logger.js";
-import { recordHttpRequest, routeFamilyForPath } from "../observability/metrics.js";
+import { recordEgress, recordHttpRequest, routeFamilyForPath } from "../observability/metrics.js";
+import type { EgressCategory } from "../observability/types.js";
 
 const SLOW_REQUEST_THRESHOLD_MS = 1_000;
 
@@ -24,6 +25,28 @@ const SKIP_PREFIXES = [
 
 function shouldSkip(path: string): boolean {
   return SKIP_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+function recordCompletedReadSources(res: express.Response): void {
+  try {
+    const categories = new Set<EgressCategory>();
+    for (const name of res.getHeaderNames()) {
+      const content = /^x-content(?:-[a-z-]+)?-read-source$/u.test(name) ||
+        name === "x-material-metadata-read-source";
+      const privateData = /^x-private-[a-z-]+-read-source$/u.test(name);
+      if (!content && !privateData) continue;
+      const source = res.getHeader(name);
+      if (source === "d1") categories.add(content ? "content_d1_response" : "private_d1_response");
+      else if (source === "supabase-fallback") {
+        categories.add(content ? "content_postgres_fallback" : "private_postgres_fallback");
+      } else if (source === "supabase") {
+        categories.add(content ? "content_postgres_response" : "private_postgres_response");
+      }
+    }
+    for (const category of categories) recordEgress(category);
+  } catch {
+    // Best effort. Header instrumentation never changes the response.
+  }
 }
 
 export function requestLogger(
@@ -42,6 +65,9 @@ export function requestLogger(
     const statusCode = res.statusCode;
     const routeFamily = routeFamilyForPath(req.path);
     recordHttpRequest({ routeFamily, statusCode, durationMs });
+    if ((req.method === "GET" || req.method === "HEAD") && statusCode >= 200 && statusCode < 300) {
+      recordCompletedReadSources(res);
+    }
 
     const meta = {
       method: req.method,

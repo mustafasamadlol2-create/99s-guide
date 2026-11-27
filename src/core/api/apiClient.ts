@@ -2,6 +2,7 @@ import { SecureStorage } from "../utils/secureStorage";
 import { getApiUrl } from "./api";
 import { NativeBridge } from "../../core/device/capacitor/nativeBridge";
 import { isPublicAuthEndpoint } from "./publicAuthEndpoint";
+import { getActiveAccountGeneration } from "../storage/accountData";
 
 /** Per-endpoint in-memory TTL (ms). Returns 0 = do not cache. */
 function getEndpointTtl(url: string): number {
@@ -74,11 +75,12 @@ class ApiCache {
     });
   }
 
-  static set(key: string, response: Response, ttl = 30_000): void {
+  static set(key: string, response: Response, ttl: number, canStore: () => boolean): void {
     response
       .clone()
       .text()
       .then((text) => {
+        if (!canStore()) return;
         this.store.set(key, {
           data: text,
           status: response.status,
@@ -102,7 +104,10 @@ class ApiCache {
   }
 }
 
+let readCacheGeneration = 0;
+
 export function clearApiCache(pattern?: string): void {
+  if (!pattern) readCacheGeneration++;
   ApiCache.invalidate(pattern);
 }
 
@@ -163,13 +168,22 @@ export async function apiClient(
   const isApiCall = url.includes("/api/") || url.startsWith("api/");
   const isGet = method === "GET";
   const isPublicAuth = isPublicAuthEndpoint(url);
+  const scope = isApiCall && isGet && !isPublicAuth
+    ? { account: getActiveAccountGeneration(), cache: readCacheGeneration }
+    : null;
+  const readKey = scope ? `${scope.account}:${scope.cache}|${url}` : url;
+  const isCurrentRead = () => !scope ||
+    (scope.account === getActiveAccountGeneration() && scope.cache === readCacheGeneration);
+  const assertCurrentRead = () => {
+    if (!isCurrentRead()) throw new DOMException("The account context changed during this request.", "AbortError");
+  };
   const isSensitivePdfViewerUrl =
     /\/api\/(?:materials\/pdf\/[^/?#]+\/external-url|module-resources\/[^/?#]+\/pdf)(?:[?#]|$)/.test(url);
 
   // Signed viewer URLs are user-authorized capabilities. Never store them in
-  // the generic URL-only cache, which could survive an in-app account switch.
+  // the generic cache. Account changes also fence cached and in-flight reads.
   if (isApiCall && isGet && !options.bypassCache && !isSensitivePdfViewerUrl) {
-    const cached = ApiCache.get(url);
+    const cached = ApiCache.get(readKey);
     if (cached) return cached;
   }
 
@@ -178,11 +192,13 @@ export async function apiClient(
       ? options.body
       : JSON.stringify(options.body)
     : "";
-  const cacheKey = `${method}|${url}|${JSON.stringify(options.headers || {})}|${bodyStr}|bypass:${options.bypassCache ?? false}|request:${options.requestKey || ""}`;
+  const cacheKey = `${method}|${readKey}|${JSON.stringify(options.headers || {})}|${bodyStr}|bypass:${options.bypassCache ?? false}|request:${options.requestKey || ""}`;
 
   if (isGet && pendingRequests.has(cacheKey)) {
     const pending = pendingRequests.get(cacheKey)!;
-    return (await pending).clone();
+    const response = await pending;
+    assertCurrentRead();
+    return response.clone();
   }
 
   const doFetch = async (): Promise<Response> => {
@@ -261,6 +277,7 @@ export async function apiClient(
     const actualRetries = isIdempotent ? retries : 0;
 
     for (let attempt = 0; attempt <= actualRetries; attempt++) {
+      assertCurrentRead();
       if (fetchOptions.signal?.aborted) {
         throw new DOMException("The request was aborted.", "AbortError");
       }
@@ -278,6 +295,7 @@ export async function apiClient(
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
+        assertCurrentRead();
         if (fetchOptions.signal?.aborted) throw new DOMException("The request was aborted.", "AbortError");
 
         if (isPdfExternalUrlRequest) {
@@ -302,6 +320,7 @@ export async function apiClient(
             else if (response.status >= 500) errorMsg = "The server is currently unavailable. Please try again later.";
           }
           if (fetchOptions.signal?.aborted) throw new DOMException("The request was aborted.", "AbortError");
+          assertCurrentRead();
 
           if (response.status === 401 && hadAuthToken && !isPublicAuth) {
             window.dispatchEvent(new CustomEvent("app-session-expired", { detail: errorMsg }));
@@ -322,7 +341,7 @@ export async function apiClient(
           const contentType = response.headers.get("content-type");
           if (contentType?.includes("application/json")) {
             const cacheTtl = ttl || getEndpointTtl(url);
-            if (cacheTtl > 0) ApiCache.set(url, response, cacheTtl);
+            if (cacheTtl > 0) ApiCache.set(readKey, response, cacheTtl, isCurrentRead);
           }
         } else if (isApiCall && !isGet) {
           invalidateRelatedCache(method, url);
@@ -333,6 +352,7 @@ export async function apiClient(
       } catch (error: any) {
         clearTimeout(timeoutId);
         fetchOptions.signal?.removeEventListener("abort", forwardAbort);
+        assertCurrentRead();
 
         if (fetchOptions.signal?.aborted) {
           throw new DOMException("The request was aborted.", "AbortError");
@@ -393,5 +413,7 @@ export async function apiClient(
     if (isGet) pendingRequests.delete(cacheKey);
   });
   if (isGet) pendingRequests.set(cacheKey, promise);
-  return (await promise).clone();
+  const response = await promise;
+  assertCurrentRead();
+  return response.clone();
 }
