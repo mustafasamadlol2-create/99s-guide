@@ -1,6 +1,6 @@
-import type { PrismaClient, UserAchievement } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
-import { assertDefinitionFitsUnlock } from "./achievementValues.js";
+import { achievementUnlockSelect, assertDefinitionFitsUnlock, type AchievementUnlockRow } from "./achievementValues.js";
 import { GamificationError } from "./errors.js";
 import { assertGamificationEnabled } from "./featureGate.js";
 import { readGamificationLevelView } from "./levelMath.js";
@@ -25,7 +25,7 @@ export function isProfileAchievementVisible(
 }
 
 export function projectPublicAchievementUnlocks(
-  unlockRows: readonly UserAchievement[],
+  unlockRows: readonly AchievementUnlockRow[],
   historicalRules: ReadonlyMap<
     string,
     Awaited<ReturnType<typeof getGamificationRuleSetVersion>>
@@ -117,6 +117,15 @@ export async function getPublicGamificationProfile(
   const rules = await getActiveGamificationRuleSet(database);
   const levelRow = await database.userGamificationLevel.findUnique({
     where: { userId: profileUserId },
+    select: {
+      definitionChecksum: true,
+      levelDefinitionChecksum: true,
+      ruleSetVersion: true,
+      lifetimePoints: true,
+      level: true,
+      maxLevelReached: true,
+      lastEvaluatedAt: true,
+    },
   });
   if (!levelRow) return null;
   const level = readGamificationLevelView(levelRow, rules);
@@ -125,6 +134,7 @@ export async function getPublicGamificationProfile(
   const unlockRows = await database.userAchievement.findMany({
     where: { userId: profileUserId },
     orderBy: [{ unlockedAt: "asc" }, { achievementId: "asc" }],
+    select: achievementUnlockSelect,
   });
   const versions = [...new Set(
     unlockRows.map((unlock) => unlock.unlockedUnderRuleSetVersion),
@@ -135,7 +145,7 @@ export async function getPublicGamificationProfile(
   for (const version of versions) {
     historicalRules.set(
       version,
-      await getGamificationRuleSetVersion(version, database),
+      version === rules.ruleSet.version ? rules : await getGamificationRuleSetVersion(version, database),
     );
   }
 

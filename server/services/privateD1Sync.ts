@@ -64,8 +64,9 @@ type OutboxExecutor = {
  * Prisma executor. One outbox identity-sequence value is explicitly written to
  * both id and revision; gaps on rollback are intentional and harmless.
  *
- * This does not coalesce pending rows. The existing drainer remains responsible
- * for delivery/retry, and the Worker rejects stale revisions.
+ * The existing drainer remains responsible for delivery/retry, and the Worker
+ * rejects stale revisions. Live Gamification publication may reuse an
+ * equivalent, still-unclaimed pending row without changing the envelope.
  */
 export async function enqueuePrivateD1Projection(
   executor: Pick<OutboxExecutor, "$queryRawUnsafe">,
@@ -79,6 +80,7 @@ export async function enqueuePrivateD1Projection(
       | "LectureRetention";
     key: Record<string, unknown>;
     data: Record<string, unknown>;
+    reuseEquivalentPending?: boolean;
   },
 ): Promise<string> {
   if (!PROJECTION_ENTITIES.has(input.entity)) {
@@ -263,35 +265,78 @@ export async function enqueuePrivateD1Projection(
       entityId,
     );
   } else {
+    // The primary-key tail bounds this optimization without a new index. Only
+    // the latest row for the exact account key can qualify. Inspect its state
+    // after picking it so an intervening tombstone or failed row forces a new
+    // publication even when an older equivalent row is still pending.
+    // Comparison ignores evaluation time only. Unlock/completion times,
+    // eligibility, period boundaries, and all other fields remain significant.
     rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
-      `WITH allocated_revision AS (
+      `WITH latest_for_key AS MATERIALIZED (
+         SELECT recent."id"
+         FROM (
+           SELECT "id", "entity", "key"
+           FROM "PrivateD1SyncOutbox"
+           WHERE $4::boolean
+           ORDER BY "id" DESC
+           LIMIT $5::integer
+         ) AS recent
+         WHERE recent."entity" = $1 AND recent."key" = $2::jsonb
+         ORDER BY recent."id" DESC
+         LIMIT 1
+       ),
+       equivalent_pending AS MATERIALIZED (
+         SELECT o."id", o."revision"
+         FROM "PrivateD1SyncOutbox" AS o
+         JOIN latest_for_key AS latest ON latest."id" = o."id"
+         WHERE o."operation" = 'upsert'
+           AND o."state" = 'PENDING'
+           AND o."attempts" = 0
+           AND o."leaseUntil" IS NULL
+           AND o."id" = o."revision"
+           AND o."data" - ARRAY['revision', 'updatedAt', 'summaryJson']
+               = $3::jsonb - ARRAY['revision', 'updatedAt', 'summaryJson']
+           AND regexp_replace(o."data"->>'summaryJson', $6, '', 'g')
+               = regexp_replace($3::jsonb->>'summaryJson', $6, '', 'g')
+         FOR UPDATE OF o
+       ),
+       allocated_revision AS (
          SELECT nextval(
            pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
          )::bigint AS value
+         WHERE NOT EXISTS (SELECT 1 FROM equivalent_pending)
+       ),
+       inserted AS (
+         INSERT INTO "PrivateD1SyncOutbox"
+         ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+         SELECT
+           allocated_revision.value,
+           $1,
+           'upsert',
+           $2::jsonb,
+           allocated_revision.value,
+           jsonb_set(
+             $3::jsonb,
+             ARRAY['revision']::text[],
+             to_jsonb(allocated_revision.value::text),
+             true
+           ),
+           0,
+           NULL,
+           NOW(),
+           NOW()
+         FROM allocated_revision
+         RETURNING "id", "revision"
        )
-       INSERT INTO "PrivateD1SyncOutbox"
-       ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
-       SELECT
-         allocated_revision.value,
-         $1,
-         'upsert',
-         $2::jsonb,
-         allocated_revision.value,
-         jsonb_set(
-           $3::jsonb,
-           ARRAY['revision']::text[],
-           to_jsonb(allocated_revision.value::text),
-           true
-         ),
-         0,
-         NULL,
-         NOW(),
-         NOW()
-       FROM allocated_revision
-       RETURNING "id"::text AS "id", "revision"::text AS "revision"`,
+       SELECT "id"::text, "revision"::text FROM inserted
+       UNION ALL
+       SELECT "id"::text, "revision"::text FROM equivalent_pending`,
       input.entity,
       JSON.stringify(input.key),
       JSON.stringify(input.data),
+      input.entity === "GamificationSnapshot" && input.reuseEquivalentPending === true,
+      BATCH_SIZE * 4,
+      '"lastEvaluatedAt":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z"',
     );
   }
 

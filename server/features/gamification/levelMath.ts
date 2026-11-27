@@ -52,7 +52,10 @@ function decodeLifetimePoints(value: bigint): number | null {
 }
 
 export function readGamificationLevelView(
-  row: UserGamificationLevel,
+  row: Pick<UserGamificationLevel,
+    "ruleSetVersion" | "definitionChecksum" | "levelDefinitionChecksum"
+    | "lifetimePoints" | "level" | "maxLevelReached" | "lastEvaluatedAt"
+  >,
   rules: GamificationRuleSetWithDefinition,
 ): GamificationLevelView | null {
   if (

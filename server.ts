@@ -123,6 +123,7 @@ import {
 } from "./server/features/lecture-progress/completion.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import { publishGamificationD1Snapshot, readGamificationD1Snapshot } from "./server/features/gamification/d1Replica.js";
+import { createGamificationPostCommitScheduler } from "./server/features/gamification/postCommitRefresh.js";
 import { readWeeklyChallengesWithBoundaryBridge } from "./server/features/gamification/weeklyChallengeBoundaryRead.js";
 import { phase6GamificationReadCutoverEnabled } from "./server/services/privateD1Read.js";
 import {
@@ -8647,36 +8648,33 @@ const notifyGamificationUpdate = (
 ) => {
   if (isGamificationEnabled()) broadcastGamificationUpdate(userId, resources);
 };
-const scheduleGamificationProjectionRefresh = (
-  userId: string,
-  resources: readonly GamificationUpdateResource[],
-) => {
-  setImmediate(() => {
-    void (async () => {
-      // Keep all production challenges current for every verified Study Points
-      // activity (MCQs, lecture completion, Focus, etc.), not only Focus routes.
-      try {
-        await refreshUserChallenges({ userId });
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : "unknown error";
-        console.warn(`[Gamification] Post-commit Challenge refresh failed: ${reason}`);
-      }
-      await refreshUserGamificationBestEffort(userId);
-      try {
-        await publishGamificationD1Snapshot(userId);
-      } catch (error) {
-        console.warn(`[Phase6] Gamification projection enqueue failed: ${error instanceof Error ? error.message : "unknown"}`);
-      }
+const scheduleGamificationProjectionRefresh = createGamificationPostCommitScheduler(
+  async ({ userId, full, metricIds, resources }) => {
+    let refreshedChallenges;
+    try {
+      refreshedChallenges = await refreshUserChallenges({ userId, metricIds: full ? undefined : metricIds });
+    } catch {
+      console.warn("[Gamification] Post-commit Challenge refresh failed.");
+    }
+    if (full) await refreshUserGamificationBestEffort(userId);
+    try {
+      // A complete refresh already evaluated all Challenge metrics. A
+      // targeted refresh still needs a complete evaluation for the snapshot.
+      await publishGamificationD1Snapshot(userId, full ? refreshedChallenges : undefined);
+    } catch {
+      console.warn("[Phase6] Gamification projection enqueue failed.");
+    }
+    if (full) {
       try {
         await refreshActiveLeaderboardSnapshotsForUser({ userId });
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : "unknown error";
-        console.warn(`[Leaderboard] Post-commit snapshot refresh failed: ${reason}`);
+      } catch {
+        console.warn("[Leaderboard] Post-commit snapshot refresh failed.");
       }
-      notifyGamificationUpdate(userId, resources);
-    })();
-  });
-};
+    }
+    notifyGamificationUpdate(userId, resources);
+  },
+  () => console.warn("[Gamification] Post-commit refresh failed."),
+);
 const refreshAchievementsAndNotify = async (userId: string) => {
   notifyGamificationUpdate(userId, [
     "summary",
@@ -8684,28 +8682,19 @@ const refreshAchievementsAndNotify = async (userId: string) => {
     "leaderboard",
     "rank",
   ]);
-  scheduleGamificationProjectionRefresh(userId, [
-    "summary",
-    "achievements",
-    "leaderboard",
-    "rank",
-  ]);
+  scheduleGamificationProjectionRefresh({
+    userId,
+    full: true,
+    metricIds: [],
+    resources: ["summary", "achievements", "leaderboard", "rank"],
+  });
 };
 const refreshChallengesAndNotify = async (
   userId: string,
   metricIds: readonly string[],
 ) => {
   notifyGamificationUpdate(userId, ["challenges"]);
-  setImmediate(() => {
-    void refreshUserChallenges({ userId, metricIds })
-      .catch((error) => {
-        const reason = error instanceof Error ? error.message : "unknown error";
-        console.warn(`[Gamification] Post-commit Challenge refresh failed: ${reason}`);
-      })
-      .then(() => publishGamificationD1Snapshot(userId))
-      .catch((error) => console.warn(`[Phase6] Challenge projection enqueue failed: ${error instanceof Error ? error.message : "unknown"}`))
-      .finally(() => notifyGamificationUpdate(userId, ["challenges"]));
-  });
+  scheduleGamificationProjectionRefresh({ userId, full: false, metricIds, resources: ["challenges"] });
 };
 
 setStudyPointsPostCommitHook(async (userId) => {
@@ -8716,13 +8705,12 @@ setStudyPointsPostCommitHook(async (userId) => {
     "leaderboard",
     "rank",
   ]);
-  scheduleGamificationProjectionRefresh(userId, [
-    "summary",
-    "achievements",
-    "challenges",
-    "leaderboard",
-    "rank",
-  ]);
+  scheduleGamificationProjectionRefresh({
+    userId,
+    full: true,
+    metricIds: [],
+    resources: ["summary", "achievements", "challenges", "leaderboard", "rank"],
+  });
 });
 app.use("/api", createStudyFeatureFlagsRouter());
 app.use(

@@ -11,7 +11,7 @@ import {
   fetchPrivateReadJson,
 } from "../../services/privateD1Read.js";
 import { getMyGamificationSummary } from "./gamificationRead.js";
-import { getMyChallenges } from "./challengeRefresh.js";
+import { getMyChallenges, type RefreshedUserChallenges } from "./challengeRefresh.js";
 import type { MyGamificationSummary } from "./levelTypes.js";
 import type { MyChallengesResponse } from "./challengeTypes.js";
 
@@ -33,12 +33,13 @@ function validUserId(userId: string): boolean {
 
 export async function buildCanonicalGamificationD1Snapshot(
   userId: string,
+  recentlyRefreshed?: RefreshedUserChallenges,
 ): Promise<GamificationD1Snapshot> {
   if (!validUserId(userId)) throw new Error("Invalid gamification snapshot user scope.");
   // Challenge refresh is an authorized canonical write; it may award a reward.
   // Re-read Points after Challenge refresh, so the snapshot never omits the
   // newly awarded Challenge Points.
-  const challenges = await getMyChallenges(userId);
+  const challenges = await getMyChallenges(userId, undefined, recentlyRefreshed);
   // Snapshot writes must never publish partially degraded Achievements on a
   // transient database failure. Keep the regular Overview degraded-read UX.
   const afterChallenges = await getMyGamificationSummary(userId, undefined, { strictCanonicalReads: true });
@@ -86,10 +87,13 @@ export function gamificationD1Projection(
   return data;
 }
 
-export async function publishGamificationD1Snapshot(userId: string): Promise<void> {
+export async function publishGamificationD1Snapshot(
+  userId: string,
+  recentlyRefreshed?: RefreshedUserChallenges,
+): Promise<void> {
   if (!enabled("PRIVATE_D1_PHASE6_GAMIFICATION_SYNC_ENABLED")) return;
   const projection = gamificationD1Projection(
-    userId, await buildCanonicalGamificationD1Snapshot(userId),
+    userId, await buildCanonicalGamificationD1Snapshot(userId, recentlyRefreshed),
   );
   // Outbox sequencing is PostgreSQL-owned. An older delayed sync cannot
   // overwrite a projection with a newer outbox revision in D1.
@@ -97,6 +101,7 @@ export async function publishGamificationD1Snapshot(userId: string): Promise<voi
     entity: "GamificationSnapshot",
     key: { id: userId },
     data: projection,
+    reuseEquivalentPending: true,
   });
 }
 

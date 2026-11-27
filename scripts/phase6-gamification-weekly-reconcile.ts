@@ -12,6 +12,7 @@ import "dotenv/config";
 import type { PrismaClient } from "@prisma/client";
 import { getPrisma, disconnectPrisma } from "../server/services/prismaClient.js";
 import { getBaghdadWeekPeriod } from "../server/features/gamification/challengePeriods.js";
+import { readActiveChallengeReconciliationWindow } from "../server/features/gamification/challengeReconciliation.js";
 import { getMyGamificationSummary } from "../server/features/gamification/gamificationRead.js";
 import {
   buildCanonicalGamificationD1Snapshot,
@@ -205,16 +206,16 @@ async function main(): Promise<void> {
   // Database list was previously outside retry/diagnostics, so transient failures
   // were printed only as aborted(FAILED) with no actionable stage.
   mainStage = "load_active_accounts";
-  const users = await retryReadOnly("load active account IDs", () => onlyUser
-    ? db.user.findMany({ where: { id: onlyUser, accountStatus: "ACTIVE" }, select: { id: true } })
-    : db.user.findMany({ where: { accountStatus: "ACTIVE" }, select: { id: true }, orderBy: { id: "asc" } }));
-  if (!users.length) throw new Error("No eligible active users selected.");
-  const selected = users.slice(startAt - 1, startAt - 1 + maxAccounts);
-  if (!selected.length) throw new Error(`--start-at ${startAt} exceeds selected accounts ${users.length}.`);
-  console.log(`[Phase6 weekly] mode=${apply ? "APPLY_WITH_CANONICAL_WRITES" : "READ_ONLY"}; Baghdad week=${week.periodKey}; active accounts=${users.length}; scan=${startAt}..${startAt + selected.length - 1}; max queued=${max}.`);
+  const { total, ids: selected } = await retryReadOnly("load active account window", () =>
+    readActiveChallengeReconciliationWindow(db, {
+      userId: onlyUser || null, offset: startAt - 1, limit: maxAccounts,
+    }));
+  if (total === 0n) throw new Error("No eligible active users selected.");
+  if (!selected.length) throw new Error(`--start-at ${startAt} exceeds selected accounts ${total}.`);
+  console.log(`[Phase6 weekly] mode=${apply ? "APPLY_WITH_CANONICAL_WRITES" : "READ_ONLY"}; Baghdad week=${week.periodKey}; active accounts=${total}; scan=${startAt}..${startAt + selected.length - 1}; max queued=${max}.`);
   // Read Worker availability before applying any canonical mutations.
   mainStage = "d1_preflight";
-  await retryReadOnly("D1 preflight", () => d1Row(selected[0].id));
+  await retryReadOnly("D1 preflight", () => d1Row(selected[0]));
   if (apply) {
     mainStage = "outbox_sequence_preflight";
     const [{ owned }] = await retryReadOnly("outbox sequence preflight", () => db.$queryRaw<Array<{ owned: string | null }>>`
@@ -226,7 +227,7 @@ async function main(): Promise<void> {
   let inspected = 0, divergent = 0, queued = 0, pending = 0, failed = 0;
   for (let i = 0; i < selected.length; i++) {
     ensureSameWeek();
-    const userId = selected[i].id;
+    const userId = selected[i];
     let stage = "read_D1";
     inspected++;
     try {
@@ -235,7 +236,7 @@ async function main(): Promise<void> {
       const reasons = await retryReadOnly(`canonical read account ${startAt + i}`, () => reasonsFor(userId, row));
       if (!reasons.length) continue;
       divergent++;
-      console.log(`[Phase6 weekly] account ${startAt + i}/${users.length}: ${reasons.join(", ")}.`);
+      console.log(`[Phase6 weekly] account ${startAt + i}/${total}: ${reasons.join(", ")}.`);
       if (!apply) continue;
       stage = "outbox_lookup";
       const outboxState = await retryReadOnly(`outbox read account ${startAt + i}`, () => outstandingOutboxState(userId));

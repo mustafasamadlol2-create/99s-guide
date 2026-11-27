@@ -21,6 +21,22 @@ import type {
 type ChallengeDatabase = PrismaClient;
 type ChallengePeriod = ReturnType<typeof getBaghdadWeekPeriod>;
 
+export async function readActiveChallengeReconciliationWindow(
+  database: Pick<PrismaClient, "$queryRaw">,
+  input: { userId: string | null; offset: number; limit: number },
+): Promise<{ total: bigint; ids: string[] }> {
+  const [{ total, ids }] = await database.$queryRaw<Array<{ total: bigint; ids: string[] }>>`
+    WITH eligible AS NOT MATERIALIZED (
+      SELECT "id" FROM "User"
+      WHERE "accountStatus" = 'ACTIVE'
+        AND (${input.userId}::text IS NULL OR "id" = ${input.userId}::text)
+    )
+    SELECT (SELECT COUNT(*) FROM eligible) AS "total",
+           ARRAY(SELECT "id" FROM eligible ORDER BY "id" ASC LIMIT ${input.limit} OFFSET ${input.offset}) AS "ids"
+  `;
+  return { total, ids };
+}
+
 export type ReconcileUserChallengesInput = {
   userId: string;
   period?: ChallengePeriod;

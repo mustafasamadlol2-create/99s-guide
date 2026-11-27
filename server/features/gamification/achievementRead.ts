@@ -1,4 +1,4 @@
-import type { PrismaClient, UserAchievement } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { getGamificationMetricDefinition } from "./metricRegistry.js";
 import { isGamificationThresholdMet } from "./thresholds.js";
@@ -11,9 +11,11 @@ import {
 import { getGamificationMetricValue } from "./metrics.js";
 import {
   achievementDefinitionsFor,
+  achievementUnlockSelect,
   assertDefinitionFitsUnlock,
   decodeMetricValue,
   uniqueAchievementMetricIds,
+  type AchievementUnlockRow,
 } from "./achievementValues.js";
 import type {
   MyAchievementUnlockView,
@@ -104,9 +106,10 @@ export async function getMyAchievements(
   // rendering canonical progress. During a rolling migration or temporary DB
   // issue, keep Overview/Achievements usable and reconstruct visible progress
   // from server-owned metrics instead of failing the whole page.
-  const unlockRows: UserAchievement[] = await database.userAchievement.findMany({
+  const unlockRows: AchievementUnlockRow[] = await database.userAchievement.findMany({
     where: { userId },
     orderBy: [{ unlockedAt: "asc" }, { achievementId: "asc" }],
+    select: achievementUnlockSelect,
   }).catch((error) => {
     if (options?.strictCanonicalReads) throw error;
     console.warn(
@@ -114,8 +117,8 @@ export async function getMyAchievements(
     );
     return [];
   });
-  const activeUnlockById = new Map<string, UserAchievement>(
-    unlockRows.map((row): [string, UserAchievement] => [row.achievementId, row]),
+  const activeUnlockById = new Map<string, AchievementUnlockRow>(
+    unlockRows.map((row) => [row.achievementId, row]),
   );
 
   const achievements = definitions.map((definition): MyAchievementView => {
@@ -154,7 +157,10 @@ export async function getMyAchievements(
   const historicalRuleSets = new Map<string, GamificationRuleSetWithDefinition>();
   for (const version of ruleSetVersions) {
     try {
-      historicalRuleSets.set(version, await getGamificationRuleSetVersion(version, database));
+      historicalRuleSets.set(
+        version,
+        version === rules.ruleSet.version ? rules : await getGamificationRuleSetVersion(version, database),
+      );
     } catch (error) {
       console.warn(
         `[Achievements] Historical rule set ${version} could not be resolved: ${error instanceof Error ? error.message : "unknown error"}`,

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { checksumGamificationDefinitionBundle } from "./checksum.js";
 import { getGamificationMetricDefinition } from "./metricRegistry.js";
 import { isGamificationThresholdMet } from "./thresholds.js";
@@ -7,6 +8,19 @@ import type {
   GamificationMetricValueType,
   GamificationRuleSetWithDefinition,
 } from "./types.js";
+
+export const achievementUnlockSelect = {
+  achievementId: true,
+  unlockedUnderRuleSetVersion: true,
+  metricId: true,
+  valueType: true,
+  metricValueAtUnlock: true,
+  targetValueAtUnlock: true,
+  definitionChecksumAtUnlock: true,
+  unlockedAt: true,
+} satisfies Prisma.UserAchievementSelect;
+
+export type AchievementUnlockRow = Prisma.UserAchievementGetPayload<{ select: typeof achievementUnlockSelect }>;
 
 export type EncodedMetricValue = {
   valueType: GamificationMetricValueType;

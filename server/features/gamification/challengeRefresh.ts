@@ -46,6 +46,30 @@ const SUPPORTED_CHALLENGE_METRICS = new Set<string>([
 ]);
 const PROGRESS_STATUSES = new Set(["ACTIVE", "COMPLETED", "EXPIRED", "LEFT"]);
 
+const challengeHistorySelect = {
+  id: true,
+  challengeInstanceId: true,
+  status: true,
+  metricId: true,
+  currentValue: true,
+  targetValue: true,
+  completedAt: true,
+  expiredAt: true,
+  instance: {
+    select: {
+      challengeDefinitionId: true,
+      ruleSetVersion: true,
+      logicalPeriodKey: true,
+      titleKey: true,
+      descriptionKey: true,
+      startsAt: true,
+      endsAt: true,
+    },
+  },
+} satisfies Prisma.UserChallengeProgressSelect;
+
+type ChallengeHistoryRow = Prisma.UserChallengeProgressGetPayload<{ select: typeof challengeHistorySelect }>;
+
 function isValidDate(value: unknown): value is Date {
   return value instanceof Date && Number.isFinite(value.getTime());
 }
@@ -233,6 +257,7 @@ async function evaluateProgress(
           baselineValue: 0n,
           updatedAt: asOf,
         },
+        select: { id: true },
       });
     }
     const reward = await awardChallengeRewardInTransaction({
@@ -307,6 +332,7 @@ async function evaluateProgress(
       expiredAt,
       updatedAt: asOf,
     },
+    select: { id: true },
   });
   if (nextStatus !== "COMPLETED") return 0;
   const reward = await awardChallengeRewardInTransaction({
@@ -380,6 +406,7 @@ export async function refreshUserChallenges(
           userId: input.userId,
           challengeInstanceId: { in: currentInstances.map(({ id }) => id) },
         },
+        select: { challengeInstanceId: true },
       });
       const existingInstanceIds = new Set(
         existing.map(({ challengeInstanceId }) => challengeInstanceId),
@@ -531,7 +558,7 @@ export async function evaluateUserChallenge(
 }
 
 function toSummaryItem(
-  progress: UserChallengeProgressWithInstance,
+  progress: ChallengeHistoryRow,
 ): ChallengeSummaryItem {
   const currentValue = toSafeInteger(progress.currentValue, "Challenge progress");
   const targetValue = toSafeInteger(progress.targetValue, "Challenge target");
@@ -573,9 +600,17 @@ function toSummaryItem(
 export async function getMyChallenges(
   userId: string,
   database: ChallengeDatabase = getPrisma(),
+  recentlyRefreshed?: RefreshedUserChallenges,
 ): Promise<MyChallengesResponse> {
   assertGamificationEnabled();
-  const refreshed = await refreshUserChallenges({ userId }, database);
+  // Only the post-commit snapshot builder passes the complete evaluation it
+  // just performed. A different user or a Baghdad rollover requires a new one.
+  const now = Date.now();
+  const refreshed = recentlyRefreshed?.userId === userId
+    && now >= recentlyRefreshed.period.startsAt.getTime()
+    && now < recentlyRefreshed.period.endsAt.getTime()
+    ? recentlyRefreshed
+    : await refreshUserChallenges({ userId }, database);
   const completed = await database.userChallengeProgress.findMany({
     where: {
       userId,
@@ -584,7 +619,7 @@ export async function getMyChallenges(
     },
     orderBy: [{ completedAt: "desc" }, { id: "desc" }],
     take: RECENT_HISTORY_LIMIT,
-    include: { instance: true },
+    select: challengeHistorySelect,
   });
   const expired = await database.userChallengeProgress.findMany({
     where: {
@@ -594,7 +629,7 @@ export async function getMyChallenges(
     },
     orderBy: [{ expiredAt: "desc" }, { id: "desc" }],
     take: RECENT_HISTORY_LIMIT,
-    include: { instance: true },
+    select: challengeHistorySelect,
   });
   const recent = [...completed, ...expired]
     .sort((left, right) => {
